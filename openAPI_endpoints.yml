@@ -1,0 +1,193 @@
+openapi: 3.0.3
+info:
+  title: IDSconnector API
+  version: "1.0.0"
+  description: |
+    API Endpoints for requesting data via the IDSconnector (consumer).
+    Capable of requesting data from a Trusted Operational Environment (TOE) and posting it to the SDT.
+servers:
+  - url: https://10.254.3.188:8004
+    description: Local IDSconnector instance (consumer)
+  - url: https://10.254.3.188:8005
+    description: Local IDSconnector instance (provider)
+paths:
+  /api/get_data_request:
+  #endpoint to be used by the SDT to get information JSON object from the IDS consumer.
+    get:
+      summary: SDT gets data from the IDS consumer
+      operationId: getDataRequest
+      tags: [IDSconnector-consumer]
+      parameters:
+        - name: toe_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: entity to be synchronized with
+        - name: data_type
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Data being received
+          example: "json"
+        - name: data_path
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Path to the data source
+      responses:
+        '200':
+          description: Data successfully retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/data_response'
+              examples:
+                example:
+                  value:
+                    data_type: "json"
+                    data: "timestamp,value\n2025-09-30T10:25:00Z,23.4\n"
+        '400':
+          description: Invalid data_request payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                badRequest:
+                  value:
+                    code: "BAD_REQUEST"
+                    message: "data_path is required."
+        '404':
+          description: Data not found for the given path or TOE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                notFound:
+                  value:
+                    code: "NOT_FOUND"
+                    message: "No data at data_path"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                serverError:
+                  value:
+                    code: "INTERNAL_ERROR"
+                    message: "Unexpected error while fetching data."
+  
+  /api/post_data_request:
+    post: 
+    #To be used by the sdn controller of the TOE to post into IDS provider
+      summary: Post data from TOE to Provider IDS provider instance
+      operationId: postDataRequest  # Changed to unique operationId
+      tags: [IDSconnector-provider]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/data_request'
+            examples:
+              example:
+                value:
+                  toe_id: "toe-12345"
+                  data_type: "json"
+                  data_path: "TO BE DECIDED"
+      responses:
+        '200':
+          description: Data successfully posted into the IDS provider connector
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/data_response'
+              examples:
+                example:
+                  value:
+                    data_type: "json"
+                    data: "timestamp,value\n2025-09-30T10:25:00Z,23.4\n"
+        '400':
+          description: Invalid data_request payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                badRequest:
+                  value:
+                    code: "BAD_REQUEST"
+                    message: "data_path is required."
+        '404':
+          description: Data not found for the given path or TOE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                notFound:
+                  value:
+                    code: "NOT_FOUND"
+                    message: "No data at data_path"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                serverError:
+                  value:
+                    code: "INTERNAL_ERROR"
+                    message: "Unexpected error while fetching data."
+
+components:
+  schemas:
+    data_request:
+      type: object
+      required: [toe_id, data_type, data_path]
+      properties:
+        toe_id:
+          type: string
+          description: Trusted Operational Environment identifier.
+          example: "toe-12345"
+        data_type:
+          type: string
+          description: Type of data being requested
+          example: "json"
+        data_path:
+          type: string
+          description: Path to the data resource
+          example: "/api/path/to/resource"
+    
+    data_response:
+      type: object
+      required: [data_type, data]
+      properties:
+        data_type:
+          type: string
+          description: Type of data returned
+          example: "json"
+        data:
+          type: string
+          description: The actual data payload
+          example: "timestamp,value\n2025-09-30T10:25:00Z,23.4\n"
+    
+    error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Error code
+          example: "BAD_REQUEST"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "data_path is required."
