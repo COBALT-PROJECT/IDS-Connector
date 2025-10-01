@@ -11,7 +11,7 @@ servers:
   - url: https://10.254.3.188:8005
     description: Local IDSconnector instance (provider)
 paths:
-  /api/get_data_request:
+  /api/IDSconnector/get_data_request:
   #endpoint to be used by the SDT to get information JSON object from the IDS consumer.
     get:
       summary: SDT gets data from the IDS consumer
@@ -83,9 +83,9 @@ paths:
                     code: "INTERNAL_ERROR"
                     message: "Unexpected error while fetching data."
   
-  /api/post_data_request:
+  /api/IDSconnector/post_data:
     post: 
-    #To be used by the sdn controller of the TOE to post into IDS provider
+    #To be used by TOE to post into IDS provider
       summary: Post data from TOE to Provider IDS provider instance
       operationId: postDataRequest  # Changed to unique operationId
       tags: [IDSconnector-provider]
@@ -94,13 +94,12 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/data_request'
+              $ref: '#/components/schemas/data_response'
             examples:
               example:
                 value:
-                  toe_id: "toe-12345"
                   data_type: "json"
-                  data_path: "TO BE DECIDED"
+                  data: "timestamp,value\n2025-09-30T10:25:00Z,23.4\n"
       responses:
         '200':
           description: Data successfully posted into the IDS provider connector
