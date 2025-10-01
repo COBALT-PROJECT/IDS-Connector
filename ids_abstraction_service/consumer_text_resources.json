@@ -1,0 +1,389 @@
+{
+  "timestamp": "2025-10-01T13:27:45.574701",
+  "consumer_url": "https://10.254.3.188:8444",
+  "total_resources": 3,
+  "resources": [
+    {
+      "@context": {
+        "ids": "https://w3id.org/idsa/core/",
+        "idsc": "https://w3id.org/idsa/code/"
+      },
+      "@type": "ids:TextResource",
+      "@id": "https://w3id.org/idsa/autogen/textResource/39a18330-4fa6-4318-9c78-7298529de845",
+      "ids:modified": {
+        "@value": "2025-10-01T11:23:29.669Z",
+        "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+      },
+      "ids:keyword": [
+        {
+          "@value": "Engineering Ingegneria Informatica SpA",
+          "@type": "http://www.w3.org/2001/XMLSchema#string"
+        },
+        {
+          "@value": "TRUEConnector",
+          "@type": "http://www.w3.org/2001/XMLSchema#string"
+        }
+      ],
+      "ids:temporalCoverage": [],
+      "ids:resourceEndpoint": [],
+      "ids:defaultRepresentation": [],
+      "ids:resourcePart": [],
+      "ids:contractOffer": [
+        {
+          "@type": "ids:ContractOffer",
+          "@id": "https://w3id.org/idsa/autogen/contractOffer/1a4708f3-a72e-41f1-a11a-0ac73c9ec5f7",
+          "ids:contractStart": {
+            "@value": "2025-10-01T11:23:29.688Z",
+            "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+          },
+          "ids:contractDate": {
+            "@value": "2025-10-01T11:23:29.687Z",
+            "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+          },
+          "ids:prohibition": [],
+          "ids:obligation": [],
+          "ids:provider": {
+            "@id": "https://w3id.org/engrd/connector/"
+          },
+          "ids:permission": [
+            {
+              "@type": "ids:Permission",
+              "@id": "https://w3id.org/idsa/autogen/permission/dfec37b1-9ea8-4bf1-a185-1f1ead4868d0",
+              "ids:assignee": [],
+              "ids:preDuty": [],
+              "ids:postDuty": [],
+              "ids:assigner": [],
+              "ids:constraint": [],
+              "ids:action": [
+                {
+                  "@id": "https://w3id.org/idsa/code/USE"
+                }
+              ],
+              "ids:title": [
+                {
+                  "@value": "Example Usage Policy",
+                  "@type": "http://www.w3.org/2001/XMLSchema#string"
+                }
+              ],
+              "ids:description": [
+                {
+                  "@value": "provide-access",
+                  "@type": "http://www.w3.org/2001/XMLSchema#string"
+                }
+              ],
+              "ids:target": {
+                "@id": "http://w3id.org/engrd/connector/artifact/1"
+              }
+            }
+          ]
+        }
+      ],
+      "ids:paymentModality": [],
+      "ids:sample": [],
+      "ids:contentPart": [],
+      "ids:representation": [
+        {
+          "@type": "ids:TextRepresentation",
+          "@id": "https://w3id.org/idsa/autogen/textRepresentation/d91785c8-d026-46ed-81c1-0f97e77abf4f",
+          "ids:created": {
+            "@value": "2025-10-01T11:23:29.705Z",
+            "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+          },
+          "ids:instance": [
+            {
+              "@type": "ids:Artifact",
+              "@id": "http://w3id.org/engrd/connector/artifact/1",
+              "ids:creationDate": {
+                "@value": "2025-10-01T11:23:29.590Z",
+                "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+              }
+            }
+          ],
+          "ids:language": {
+            "@id": "https://w3id.org/idsa/code/EN"
+          }
+        }
+      ],
+      "ids:spatialCoverage": [],
+      "ids:created": {
+        "@value": "2025-10-01T11:23:29.669Z",
+        "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+      },
+      "ids:theme": [],
+      "ids:title": [
+        {
+          "@value": "Default resource",
+          "@type": "http://www.w3.org/2001/XMLSchema#string"
+        }
+      ],
+      "ids:description": [
+        {
+          "@value": "Default resource description",
+          "@type": "http://www.w3.org/2001/XMLSchema#string"
+        }
+      ],
+      "ids:contentType": {
+        "@id": "https://w3id.org/idsa/code/SCHEMA_DEFINITION"
+      },
+      "ids:version": "1.0.0",
+      "ids:language": [
+        {
+          "@id": "https://w3id.org/idsa/code/EN"
+        },
+        {
+          "@id": "https://w3id.org/idsa/code/IT"
+        }
+      ]
+    },
+    {
+      "@context": {
+        "ids": "https://w3id.org/idsa/core/",
+        "idsc": "https://w3id.org/idsa/code/"
+      },
+      "@type": "ids:TextResource",
+      "@id": "https://w3id.org/idsa/autogen/textResource/037b29fe-67f7-451a-80e4-ee242604632d",
+      "ids:modified": {
+        "@value": "2025-10-01T11:23:29.735Z",
+        "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+      },
+      "ids:keyword": [
+        {
+          "@value": "Engineering Ingegneria Informatica SpA",
+          "@type": "http://www.w3.org/2001/XMLSchema#string"
+        },
+        {
+          "@value": "TRUEConnector",
+          "@type": "http://www.w3.org/2001/XMLSchema#string"
+        }
+      ],
+      "ids:temporalCoverage": [],
+      "ids:resourceEndpoint": [],
+      "ids:defaultRepresentation": [],
+      "ids:resourcePart": [],
+      "ids:contractOffer": [
+        {
+          "@type": "ids:ContractOffer",
+          "@id": "https://w3id.org/idsa/autogen/contractOffer/151f36e9-1587-4b38-8315-3e3883462bd3",
+          "ids:contractStart": {
+            "@value": "2025-10-01T11:23:29.688Z",
+            "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+          },
+          "ids:contractDate": {
+            "@value": "2025-10-01T11:23:29.743Z",
+            "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+          },
+          "ids:prohibition": [],
+          "ids:obligation": [],
+          "ids:provider": {
+            "@id": "https://w3id.org/engrd/connector/"
+          },
+          "ids:permission": [
+            {
+              "@type": "ids:Permission",
+              "@id": "https://w3id.org/idsa/autogen/permission/5f1fbc65-e63d-40cd-b816-17062d60ce8e",
+              "ids:assignee": [],
+              "ids:preDuty": [],
+              "ids:postDuty": [],
+              "ids:assigner": [],
+              "ids:constraint": [],
+              "ids:action": [
+                {
+                  "@id": "https://w3id.org/idsa/code/USE"
+                }
+              ],
+              "ids:title": [
+                {
+                  "@value": "Example Usage Policy",
+                  "@type": "http://www.w3.org/2001/XMLSchema#string"
+                }
+              ],
+              "ids:description": [
+                {
+                  "@value": "provide-access",
+                  "@type": "http://www.w3.org/2001/XMLSchema#string"
+                }
+              ],
+              "ids:target": {
+                "@id": "http://w3id.org/engrd/connector/artifact/big"
+              }
+            }
+          ]
+        }
+      ],
+      "ids:paymentModality": [],
+      "ids:sample": [],
+      "ids:contentPart": [],
+      "ids:representation": [
+        {
+          "@type": "ids:TextRepresentation",
+          "@id": "https://w3id.org/idsa/autogen/textRepresentation/cae452e4-dd9e-493c-a573-ffda2460c95f",
+          "ids:created": {
+            "@value": "2025-10-01T11:23:29.751Z",
+            "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+          },
+          "ids:instance": [
+            {
+              "@type": "ids:Artifact",
+              "@id": "http://w3id.org/engrd/connector/artifact/big",
+              "ids:creationDate": {
+                "@value": "2025-10-01T11:23:29.653Z",
+                "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+              }
+            }
+          ],
+          "ids:language": {
+            "@id": "https://w3id.org/idsa/code/EN"
+          }
+        }
+      ],
+      "ids:spatialCoverage": [],
+      "ids:created": {
+        "@value": "2025-10-01T11:23:29.735Z",
+        "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+      },
+      "ids:theme": [],
+      "ids:title": [
+        {
+          "@value": "World class literature",
+          "@type": "http://www.w3.org/2001/XMLSchema#string"
+        }
+      ],
+      "ids:description": [
+        {
+          "@value": "Used to verify large data transfer",
+          "@type": "http://www.w3.org/2001/XMLSchema#string"
+        }
+      ],
+      "ids:contentType": {
+        "@id": "https://w3id.org/idsa/code/SCHEMA_DEFINITION"
+      },
+      "ids:version": "1.0.0",
+      "ids:language": [
+        {
+          "@id": "https://w3id.org/idsa/code/EN"
+        },
+        {
+          "@id": "https://w3id.org/idsa/code/IT"
+        }
+      ]
+    },
+    {
+      "@context": {
+        "ids": "https://w3id.org/idsa/core/",
+        "idsc": "https://w3id.org/idsa/code/"
+      },
+      "@type": "ids:TextResource",
+      "@id": "https://w3id.org/idsa/autogen/textResource/connectServiceObject",
+      "ids:modified": {
+        "@value": "2025-10-01T13:24:15.000Z",
+        "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+      },
+      "ids:keyword": [
+        {
+          "@value": "Engineering Ingegneria Informatica SpA TEST",
+          "@type": "http://www.w3.org/2001/XMLSchema#string"
+        }
+      ],
+      "ids:temporalCoverage": [],
+      "ids:resourceEndpoint": [],
+      "ids:defaultRepresentation": [],
+      "ids:resourcePart": [],
+      "ids:contractOffer": [
+        {
+          "@type": "ids:ContractOffer",
+          "@id": "https://w3id.org/idsa/autogen/contractOffer/connectServiceObject",
+          "ids:contractStart": {
+            "@value": "2025-10-01T13:24:15.000Z",
+            "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+          },
+          "ids:contractDate": {
+            "@value": "2025-10-01T13:24:15.000Z",
+            "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+          },
+          "ids:prohibition": [],
+          "ids:obligation": [],
+          "ids:provider": {
+            "@id": "https://w3id.org/engrd/connector/"
+          },
+          "ids:permission": [
+            {
+              "@type": "ids:Permission",
+              "@id": "https://w3id.org/idsa/autogen/permission/connectServiceObject",
+              "ids:assignee": [],
+              "ids:preDuty": [],
+              "ids:postDuty": [],
+              "ids:assigner": [],
+              "ids:constraint": [
+                {
+                  "@type": "ids:Constraint",
+                  "@id": "https://w3id.org/idsa/autogen/constraint/connectServiceObject",
+                  "ids:operator": {
+                    "@id": "https://w3id.org/idsa/code/AFTER"
+                  },
+                  "ids:leftOperand": {
+                    "@id": "https://w3id.org/idsa/code/POLICY_EVALUATION_TIME"
+                  },
+                  "ids:rightOperand": {
+                    "@value": "2025-10-01T13:24:15Z",
+                    "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+                  }
+                }
+              ],
+              "ids:action": [
+                {
+                  "@id": "https://w3id.org/idsa/code/USE"
+                }
+              ],
+              "ids:title": [
+                {
+                  "@value": "Example Usage Policy POSTMAN",
+                  "@type": "http://www.w3.org/2001/XMLSchema#string"
+                }
+              ],
+              "ids:description": [
+                {
+                  "@value": "provide-access",
+                  "@type": "http://www.w3.org/2001/XMLSchema#string"
+                }
+              ],
+              "ids:target": {
+                "@id": "http://w3id.org/engrd/connector/artifact/postman"
+              }
+            }
+          ]
+        }
+      ],
+      "ids:paymentModality": [],
+      "ids:sample": [],
+      "ids:contentPart": [],
+      "ids:representation": [],
+      "ids:spatialCoverage": [],
+      "ids:created": {
+        "@value": "2025-10-01T13:24:15.000Z",
+        "@type": "http://www.w3.org/2001/XMLSchema#dateTimeStamp"
+      },
+      "ids:theme": [],
+      "ids:title": [
+        {
+          "@value": "World class literature",
+          "@type": "http://www.w3.org/2001/XMLSchema#string"
+        }
+      ],
+      "ids:description": [
+        {
+          "@value": "\n{\n    \\\"services\\\": [\n        {\n            \\\"service_id\\\": {\n                \\\"context_id\\\": {\n                    \\\"context_uuid\\\": {\n                        \\\"uuid\\\": \\\"admin\\\"\n                        }\n                    },\n                \\\"service_uuid\\\": {\n                    \\\"uuid\\\": \\\"dc-2-dc-svc\\\"\n                }\n            },\n            \\\"service_type\\\": 2,\n            \\\"service_status\\\": {\\\"service_status\\\": 1},\n            \\\"service_endpoint_ids\\\": [\n                {\\\"device_id\\\":{\\\"device_uuid\\\":{\\\"uuid\\\":\\\"DC1\\\"}},\\\"endpoint_uuid\\\":{\\\"uuid\\\":\\\"int\\\"}},\n                {\\\"device_id\\\":{\\\"device_uuid\\\":{\\\"uuid\\\":\\\"DC2\\\"}},\\\"endpoint_uuid\\\":{\\\"uuid\\\":\\\"int\\\"}}\n            ],\n            \\\"service_constraints\\\": [\n                {\\\"sla_capacity\\\": {\\\"capacity_gbps\\\": 10.0}},\n                {\\\"sla_latency\\\": {\\\"e2e_latency_ms\\\": 15.2}}\n            ],\n            \\\"service_config\\\": {\\\"config_rules\\\": [\n                {\\\"action\\\": 1, \\\"custom\\\": {\\\"resource_key\\\": \\\"/settings\\\", \\\"resource_value\\\": {\n                    \\\"address_families\\\": [\\\"IPV4\\\"], \\\"bgp_as\\\": 65000, \\\"bgp_route_target\\\": \\\"65000:123\\\",\n                    \\\"mtu\\\": 1512, \\\"vlan_id\\\": 300\n                }}},\n                {\\\"action\\\": 1, \\\"custom\\\": {\\\"resource_key\\\": \\\"/device[PE1]/endpoint[1/1]/settings\\\", \\\"resource_value\\\": {\n                    \\\"route_distinguisher\\\": \\\"65000:123\\\", \\\"router_id\\\": \\\"10.0.0.1\\\",\n                    \\\"address_ip\\\": \\\"3.3.1.1\\\", \\\"address_prefix\\\": 24, \\\"sub_interface_index\\\": 1, \\\"vlan_id\\\": 300\n                }}},\n                {\\\"action\\\": 1, \\\"custom\\\": {\\\"resource_key\\\": \\\"/device[PE2]/endpoint[1/1]/settings\\\", \\\"resource_value\\\": {\n                    \\\"route_distinguisher\\\": \\\"65000:123\\\", \\\"router_id\\\": \\\"10.0.0.2\\\",\n                    \\\"address_ip\\\": \\\"3.3.2.1\\\", \\\"address_prefix\\\": 24, \\\"sub_interface_index\\\": 1, \\\"vlan_id\\\": 300\n                }}},\n                {\\\"action\\\": 1, \\\"custom\\\": {\\\"resource_key\\\": \\\"/device[PE3]/endpoint[1/1]/settings\\\", \\\"resource_value\\\": {\n                    \\\"route_distinguisher\\\": \\\"65000:123\\\", \\\"router_id\\\": \\\"10.0.0.3\\\",\n                    \\\"address_ip\\\": \\\"3.3.3.1\\\", \\\"address_prefix\\\": 24, \\\"sub_interface_index\\\": 1, \\\"vlan_id\\\": 300\n                }}},\n                {\\\"action\\\": 1, \\\"custom\\\": {\\\"resource_key\\\": \\\"/device[PE4]/endpoint[1/1]/settings\\\", \\\"resource_value\\\": {\n                    \\\"route_distinguisher\\\": \\\"65000:123\\\", \\\"router_id\\\": \\\"10.0.0.4\\\",\n                    \\\"address_ip\\\": \\\"3.3.4.1\\\", \\\"address_prefix\\\": 24, \\\"sub_interface_index\\\": 1, \\\"vlan_id\\\": 300\n                }}}\n            ]}\n        }\n    ]\n}\n",
+          "@type": "http://www.w3.org/2001/XMLSchema#string"
+        }
+      ],
+      "ids:contentType": {
+        "@id": "https://w3id.org/idsa/code/SCHEMA_DEFINITION"
+      },
+      "ids:version": "1.0.0",
+      "ids:language": [
+        {
+          "@id": "https://w3id.org/idsa/code/EN"
+        }
+      ]
+    }
+  ]
+}
