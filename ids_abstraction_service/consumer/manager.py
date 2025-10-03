@@ -29,8 +29,8 @@ class ConsumerResourceManager:
         
         # Initialize FastAPI app
         self.app = FastAPI(
-            title="IDS Consumer Resource API Server",
-            description="API server for retrieving text resources from IDS Consumer",
+            title="IDS Consumer API Server",
+            description="IDS Consumer API Server",
             version="1.0.0"
         )
         
