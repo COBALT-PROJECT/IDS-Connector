@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  ids-consumer-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ids-consumer-api:latest
+    container_name: ids-consumer-api
+    ports:
+      - "8004:8004"
+    env_file:
+      - .env
+    environment:
+      # Override for local development if needed
+      CONSUMER_BASE_URL: ${CONSUMER_BASE_URL:-https://10.254.3.188:8444}
+    networks:
+      - ids-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  ids-network:
+    driver: bridge

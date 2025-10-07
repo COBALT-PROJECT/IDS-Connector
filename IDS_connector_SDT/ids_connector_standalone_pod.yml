@@ -1,0 +1,41 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ids-connector-sdt-pod
+  labels:
+    app: ids-connector-sdt-standalone
+spec:
+  containers:
+  - name: ids-connector-sdt
+    image: ids-connector-sdt:latest
+    imagePullPolicy: IfNotPresent
+    ports:
+    - containerPort: 8004
+      protocol: TCP
+    env:
+    - name: CONSUMER_BASE_URL
+      value: "https://tc-consumer:8444"
+    - name: SELF_DESCRIPTION_PATH
+      value: "/api/selfDescription/"
+    - name: CACHE_TTL
+      value: "300"
+    - name: REQUEST_TIMEOUT
+      value: "30"
+    - name: USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: ids-consumer-secret
+          key: username
+    - name: PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: ids-consumer-secret
+          key: password
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"

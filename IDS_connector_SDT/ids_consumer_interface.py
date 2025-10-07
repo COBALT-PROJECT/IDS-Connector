@@ -61,9 +61,12 @@ class IDS_ConsumerInterface:
             return await self.get_data_request(toe_id, data_type, data_path)
         
         # Resource by name endpoint (keeping for backward compatibility)
+        #Get resource by name
+        """
         @app.get("/api/IDSconnector/get_data_request/{resource_name}")
         async def get_resource_by_name(resource_name: str):
             return await self.get_resource_by_name(resource_name)
+        """
         
         # Clear cache endpoint
         @app.post("/api/IDSconnector/clear-cache")
@@ -71,7 +74,7 @@ class IDS_ConsumerInterface:
             return await self.clear_resources_cache()
         
         # Consumer info endpoint
-        @app.get("/api/IDSconnector/consumer/info")
+        @app.get("/api/IDSconnector/SDT/info")
         async def consumer_info():
             return await self.consumer_info()
     
