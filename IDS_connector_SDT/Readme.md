@@ -14,7 +14,7 @@ The IDS SDT Connector is a FastAPI-based service that interfaces with IDS Consum
 ### 1. Clone/Copy the Files
 Ensure you have all the required files in your project directory:
 ```
-ids-consumer-api/
+IDS_connector_SDT/
 ├── main.py
 ├── manager.py
 ├── catalog_service.py
@@ -32,7 +32,11 @@ ids-consumer-api/
 └── port_forward_remote.sh
 ```
 
-### 2. Build and Deploy (First Time)
+### 2. IDS Connector Structure
+
+![Alt text](Images/IDS_connector_structure.png)
+
+### 3. Build and Deploy (First Time)
 ```bash
 # Make scripts executable
 sudo chmod +x build_and_deploy.sh deploy.sh quick_redeploy.sh port_forward.sh port_forward_remote.sh
@@ -41,13 +45,13 @@ sudo chmod +x build_and_deploy.sh deploy.sh quick_redeploy.sh port_forward.sh po
 ./build_and_deploy.sh
 ```
 
-### 3. Subsequent Deployments
+### 4. Subsequent Deployments
 If the Docker image is already built:
 ```bash
 ./deploy.sh
 ```
 
-### 4. Access the API
+### 5. Access the API
 After deployment, start port forwarding to access the API:
 ```bash
 # Local access only
@@ -63,11 +67,7 @@ Then access:
 - **Health Check**: http://localhost:8004/health
 - **Consumer Info**: http://localhost:8004/api/IDSconnector/SDT/info
 
-To run, execute the following commands:
-```bash
-kubectl apply -f ids_connector_sdt_k8s_deployment.yml (or ./deploy.sh)
-./quick_redeploy.sh
-```
+
 
 ## API Endpoints
 
@@ -118,34 +118,18 @@ Sets up port forwarding on all interfaces for remote access.
 
 ### Check Pod Status
 ```bash
-kubectl get pods -l app=ids-consumer-api
+kubectl get pods -l app=ids-connector-sdt
 ```
 
 ### View Logs
 ```bash
-kubectl logs -f deployment/ids-consumer-api
+kubectl logs -f deployment/ids-connector-sdt
 ```
 
 ### Pod Not Starting (ImagePullBackOff)
 If using K3s, import the Docker image:
 ```bash
 docker save ids-consumer-api:latest | sudo k3s ctr images import -
-```
-
-### Connection Issues to tc-consumer
-1. Verify tc-consumer service is running:
-```bash
-kubectl get svc tc-consumer
-```
-
-2. Check if the pod can resolve tc-consumer:
-```bash
-kubectl exec -it deployment/ids-consumer-api -- nslookup tc-consumer
-```
-
-3. Verify credentials in the secret:
-```bash
-kubectl get secret ids-consumer-secret -o yaml
 ```
 
 ### Clear and Restart
@@ -155,7 +139,7 @@ If you need to completely remove and redeploy:
 kubectl delete -f ids_connector_sdt_k8s_deployment.yml
 
 # Redeploy
-./deploy.sh
+./quick_redeploy.sh
 ```
 
 ## Local Development
