@@ -1,0 +1,129 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ids-connector-toe-configmap
+data:
+  PROVIDER_BASE_URL: "https://tc-provider:8090"
+  SELF_DESCRIPTION_PATH: "/api/selfDescription/"
+  CACHE_TTL: "300"
+  REQUEST_TIMEOUT: "30"
+  HOST: "0.0.0.0"
+  PORT: "8005"
+  LOG_LEVEL: "info"
+  RELOAD: "false"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ids-connector-toe-secret
+type: Opaque
+stringData:
+  username: admin
+  password: password
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ids-connector-toe-deployment
+  labels:
+    app: ids-connector-toe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ids-connector-toe
+  template:
+    metadata:
+      labels:
+        app: ids-connector-toe
+    spec:
+      containers:
+      - name: ids-connector-toe
+        image: ids-connector-toe:v1.0.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8005
+          protocol: TCP
+        env:
+        - name: PROVIDER_BASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: ids-connector-toe-configmap
+              key: PROVIDER_BASE_URL
+        - name: SELF_DESCRIPTION_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: ids-connector-toe-configmap
+              key: SELF_DESCRIPTION_PATH
+        - name: CACHE_TTL
+          valueFrom:
+            configMapKeyRef:
+              name: ids-connector-toe-configmap
+              key: CACHE_TTL
+        - name: REQUEST_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: ids-connector-toe-configmap
+              key: REQUEST_TIMEOUT
+        - name: HOST
+          valueFrom:
+            configMapKeyRef:
+              name: ids-connector-toe-configmap
+              key: HOST
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: ids-connector-toe-configmap
+              key: PORT
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: ids-connector-toe-configmap
+              key: LOG_LEVEL
+        - name: USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: ids-connector-toe-secret
+              key: username
+        - name: PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ids-connector-toe-secret
+              key: password
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8005
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8005
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ids-connector-toe-service
+spec:
+  selector:
+    app: ids-connector-toe
+  type: ClusterIP
+  ports:
+  - port: 8005
+    targetPort: 8005
+    protocol: TCP
+    name: http
