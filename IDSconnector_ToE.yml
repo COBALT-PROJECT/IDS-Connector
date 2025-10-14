@@ -1,0 +1,97 @@
+openapi: 3.0.3
+info:
+  title: IDS Connector ToE API
+  version: "1.0.0"
+  description: |
+    API endpoint for the TOE to post data to the IDSconnector (toe).
+servers:
+  - url: https://10.254.3.188:8005
+    description: Local IDSconnector instance (ToE)
+paths:
+  /api/IDSconnector/post_data:
+    post:
+      summary: Post data from TOE to Provider IDS connector instance
+      operationId: postDataRequest
+      tags: [IDSconnector-provider]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/data_response'
+            examples:
+              example:
+                value:
+                  data_type: "json"
+                  data: "timestamp,value\n2025-09-30T10:25:00Z,23.4\n"
+      responses:
+        '200':
+          description: Data successfully posted into the IDS provider connector
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/data_response'
+              examples:
+                example:
+                  value:
+                    data_type: "json"
+                    data: "timestamp,value\n2025-09-30T10:25:00Z,23.4\n"
+        '400':
+          description: Invalid data_request payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                badRequest:
+                  value:
+                    code: "BAD_REQUEST"
+                    message: "data_path is required."
+        '404':
+          description: Data not found for the given path or TOE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                notFound:
+                  value:
+                    code: "NOT_FOUND"
+                    message: "No data at data_path"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                serverError:
+                  value:
+                    code: "INTERNAL_ERROR"
+                    message: "Unexpected error while fetching data."
+components:
+  schemas:
+    data_response:
+      type: object
+      required: [data_type, data]
+      properties:
+        data_type:
+          type: string
+          description: Type of data returned
+          example: "json"
+        data:
+          type: string
+          description: The actual data payload
+          example: "timestamp,value\n2025-09-30T10:25:00Z,23.4\n"
+    error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Error code
+          example: "BAD_REQUEST"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "data_path is required."
