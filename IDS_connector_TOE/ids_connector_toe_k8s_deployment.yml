@@ -39,7 +39,7 @@ spec:
     spec:
       containers:
       - name: ids-connector-toe
-        image: ids-connector-toe:v1.0.0
+        image: ids-connector-toe:v1.0.0 #if you are pulling from dockerhub, then use: allenabishek/ids-connector-toe:v1.0.0, local image: ids-connector-toe:v1.0.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8005
@@ -97,22 +97,22 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8005
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8005
-          initialDelaySeconds: 10
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
+        #livenessProbe: #remove if running on ncsrd server
+         # httpGet:
+          #  path: /health
+           # port: 8005
+          #initialDelaySeconds: 30
+          #periodSeconds: 10
+          #timeoutSeconds: 5
+          #failureThreshold: 3
+        #readinessProbe:
+         # httpGet:
+          #  path: /health
+           # port: 8005
+          #initialDelaySeconds: 10
+          #periodSeconds: 5
+          #timeoutSeconds: 3
+          #failureThreshold: 3
 ---
 apiVersion: v1
 kind: Service
