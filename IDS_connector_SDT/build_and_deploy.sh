@@ -10,7 +10,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 IMAGE_NAME="ids-connector-sdt"
-IMAGE_TAG="latest"
+IMAGE_TAG="v1.0.0"
 
 echo -e "${GREEN}Starting IDS Consumer API deployment process...${NC}"
 
