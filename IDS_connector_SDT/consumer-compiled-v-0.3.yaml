@@ -32,6 +32,9 @@ spec:
   - name: "8888"
     port: 8888
     targetPort: 8888
+  - name: "8444" #this is added manually as it doesnt come from trueconnector repository
+    port: 8444
+    targetPort: 8444
   selector:
     io.kompose.service: tc-consumer
 status:
