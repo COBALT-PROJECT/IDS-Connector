@@ -13,6 +13,7 @@ declare -a IMAGES=(
     "rdlabengpa/ids_uc_data_app_platoon:v1.7.9"
     "rdlabengpa/ids_be_data_app:v0.3.8"
     "rdlabengpa/ids_uc_data_app_platoon_pip:v1.0.0"
+    "allenabishek/ids-connector-toe:v2.0.0"
 )
 
 # Additional images you might want to import (uncomment to include)
