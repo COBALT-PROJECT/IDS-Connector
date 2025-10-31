@@ -39,7 +39,7 @@ spec:
     spec:
       containers:
       - name: ids-connector-toe
-        image: ids-connector-toe:v1.0.0 #if you are pulling from dockerhub, then use: allenabishek/ids-connector-toe:v1.0.0, local image: ids-connector-toe:v1.0.0
+        image: allenabishek/ids-connector-toe:v2.0.0 #if you are pulling from dockerhub, then use: allenabishek/ids-connector-toe:v1.0.0, local image: ids-connector-toe:v1.0.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8005
