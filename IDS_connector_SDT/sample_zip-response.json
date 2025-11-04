@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "metadata": {
+    "type": "text",
+    "filename": "extracted_content.txt",
+    "mime_type": "text/plain",
+    "size_bytes": 1363,
+    "extraction_timestamp": "2025-11-04T11:17:29.540956",
+    "source_resource": "https://w3id.org/idsa/autogen/textResource/zip-resource-20251104-111612",
+    "resource_name": "zip-resource-20251104-111612"
+  },
+  "data_type": "text",
+  "data": "{\\\\\"type\\\\\": \\\\\"zip_file\\\\\", \\\\\"metadata\\\\\": {\\\\\"filename\\\\\": \\\\\"test_data.zip\\\\\", \\\\\"size_bytes\\\\\": 829, \\\\\"upload_timestamp\\\\\": \\\\\"2025-11-04T11:16:12.488581Z\\\\\", \\\\\"encoding\\\\\": \\\\\"base64\\\\\", \\\\\"mime_type\\\\\": \\\\\"application/zip\\\\\"}, \\\\\"data\\\\\": \\\\\"UEsDBBQAAAAIAIVgW1tOk2DUHgEAAPEBAAAOAAAAdGVzdF9kYXRhLmpzb25tUcFugzAMvfcrEOclJLRdW05D1Q477VBOvUHwWLaAURKQqqr/PqeA1En1wZHj52c/+7qKoljXcRbFyuBQM+fRlg3ELyHhdQvOl20f8qlIt0wKlu4KmWZik0nBt3spRXqe0HeCE9hRK/i4U4rZ2BO32NwJ0Uw1x8CiaYrofdQ1dApcdERjQHmN3YS24HCwCgh/pZh+3vylD2EcXt4gNgbKXjuusE3UQsmx82iwufBR8s/qhzhPD3qDBgtl6FOQ8ln0mokdE4dCimy9zeSep5vXgyTd4rxUTQtM3FA5ZXUfCFwiZ2NP3GLJoqSxOPQuqaHFhbQrpxE8neDfWSjXD5XRKle0HEeYr9I4eFSANlTmtLUuyivtvuE3pvRtdfsDUEsDBBQAAAAIAIVgW1skWYUyWQAAAFoAAAAMAAAAbWV0YWRhdGEudHh0DccxDkBAEAXQ3in+BcjOImRbFCoSKt0kO0SC3TDuz+vexGc8BKcoe1bGuv9bww2VR/drw9KPeOMR2EMD+nbCPHRJcwureAdrbJmSSW01k3WmcGSysiai/ANQSwMEFAAAAAgAhWBbWy/9PoWEAAAAmAAAAAoAAABjb25maWcuaW5pHY3BCsIwEETv+xX9giRSBBE8CK0giBf1VHoISUgDaTZstvX3TTy+mcfMNIy36+fxnqE42h11ly6i0XHBwpCRuAYnpY6QCRkNxsoLcwYOq8Ot1b0CmO7Da27OHux/pDnlLOW3D1YgeemSJysNpuQMI0mIOvlNe1fl8Qn1ugRMFQ5CCQU/UEsBAhQDFAAAAAgAhWBbW06TYNQeAQAA8QEAAA4AAAAAAAAAAAAAAIABAAAAAHRlc3RfZGF0YS5qc29uUEsBAhQDFAAAAAgAhWBbWyRZhTJZAAAAWgAAAAwAAAAAAAAAAAAAAIABSgEAAG1ldGFkYXRhLnR4dFBLAQIUAxQAAAAIAIVgW1sv/T6FhAAAAJgAAAAKAAAAAAAAAAAAAACAAc0BAABjb25maWcuaW5pUEsFBgAAAAADAAMArgAAAHkCAAAAAA==\\\\\"}",
+  "encoding": "utf-8"
+}

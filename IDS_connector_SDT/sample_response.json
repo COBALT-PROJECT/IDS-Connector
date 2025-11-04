@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "metadata": {
+    "type": "text",
+    "filename": "extracted_content.txt",
+    "mime_type": "text/plain",
+    "size_bytes": 1767,
+    "extraction_timestamp": "2025-11-04T11:10:18.397825",
+    "source_resource": "https://w3id.org/idsa/autogen/textResource/python-resource-20251104-110157",
+    "resource_name": "python-resource-20251104-110157"
+  },
+  "data_type": "text",
+  "data": "{\\\\\"type\\\\\": \\\\\"python_script\\\\\", \\\\\"metadata\\\\\": {\\\\\"filename\\\\\": \\\\\"sample.py\\\\\", \\\\\"size_bytes\\\\\": 1109, \\\\\"upload_timestamp\\\\\": \\\\\"2025-11-04T11:01:57.963650Z\\\\\", \\\\\"encoding\\\\\": \\\\\"utf-8\\\\\", \\\\\"mime_type\\\\\": \\\\\"text/x-python\\\\\", \\\\\"functions_count\\\\\": 3, \\\\\"classes_count\\\\\": 1, \\\\\"imports_count\\\\\": 4, \\\\\"lines_of_code\\\\\": 39, \\\\\"function_names\\\\\": [\\\\\"parse_args\\\\\", \\\\\"main\\\\\", \\\\\"greet\\\\\"], \\\\\"class_names\\\\\": [\\\\\"Greeter\\\\\"], \\\\\"has_main_block\\\\\": true, \\\\\"syntax_valid\\\\\": true}, \\\\\"content\\\\\": \\\\\"#!/usr/bin/env python3\\n\\\\\\\"\\\\\\\"\\\\\\\"sample.py \\u2014 a tiny, well-structured Python script.\\n\\nUsage:\\n  python sample.py --name Allen --repeat 3\\n\\\\\\\"\\\\\\\"\\\\\\\"\\n\\nfrom __future__ import annotations\\nimport argparse\\nimport logging\\nfrom dataclasses import dataclass\\n\\n# Configure logging\\nlogging.basicConfig(level=logging.INFO, format=\\\\\\\"%(levelname)s: %(message)s\\\\\\\")\\n\\n@dataclass\\nclass Greeter:\\n    name: str\\n    repeat: int = 1\\n\\n    def greet(self) -> str:\\n        \\\\\\\"\\\\\\\"\\\\\\\"Return a greeting string repeated `repeat` times.\\\\\\\"\\\\\\\"\\\\\\\"\\n        message = f\\\\\\\"Hello, {self.name}!\\\\\\\"\\n        return \\\\\\\"\\\\n\\\\\\\".join([message] * max(1, self.repeat))\\n\\ndef parse_args() -> argparse.Namespace:\\n    parser = argparse.ArgumentParser(description=\\\\\\\"Say hello a few times.\\\\\\\")\\n    parser.add_argument(\\\\\\\"--name\\\\\\\", default=\\\\\\\"World\\\\\\\", help=\\\\\\\"Name to greet.\\\\\\\")\\n    parser.add_argument(\\\\\\\"--repeat\\\\\\\", type=int, default=1, help=\\\\\\\"How many times to repeat.\\\\\\\")\\n    return parser.parse_args()\\n\\ndef main() -> None:\\n    args = parse_args()\\n    greeter = Greeter(name=args.name, repeat=args.repeat)\\n    logging.info(\\\\\\\"Preparing greeting...\\\\\\\")\\n    print(greeter.greet())\\n\\nif __name__ == \\\\\\\"__main__\\\\\\\":\\n    main()\\n\\\\\"}",
+  "encoding": "utf-8"
+}

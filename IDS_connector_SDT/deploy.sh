@@ -6,8 +6,8 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 # Configuration
-IMAGE_NAME="allenabishek/ids-connector-sdt"
-IMAGE_TAG="v2.0.0"
+IMAGE_NAME="ids-connector-sdt"
+IMAGE_TAG="v2.0.1"
 
 # YAML files to deploy in order
 YAML_FILES=(

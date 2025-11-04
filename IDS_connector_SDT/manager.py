@@ -8,6 +8,7 @@ from fastapi import FastAPI
 import logging
 from catalog_service import ConsumerCatalogService
 from resource_service import ConsumerResourceService
+from file_extractor_service import FileExtractorService
 from ids_consumer_interface import IDS_ConsumerInterface
 
 logger = logging.getLogger(__name__)
@@ -51,10 +52,13 @@ class ConsumerResourceManager:
             request_timeout=config['request_timeout']
         )
         
+        self.file_extractor_service = FileExtractorService()
+        
         # Initialize IDS Consumer Interface
         self.ids_interface = IDS_ConsumerInterface(
             catalog_service=self.catalog_service,
             resource_service=self.resource_service,
+            file_extractor_service=self.file_extractor_service,
             config=config
         )
         

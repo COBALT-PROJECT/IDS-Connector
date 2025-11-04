@@ -5,10 +5,12 @@
 IDS Consumer Interface - API endpoint handlers for Consumer Resource Server
 """
 from fastapi import FastAPI, Query, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse, Response
 import logging
 from typing import Dict, Optional
 import json
+import base64
+import io
 
 logger = logging.getLogger(__name__)
 
@@ -18,17 +20,19 @@ class IDS_ConsumerInterface:
     IDS Consumer Interface class containing all API endpoint handlers
     """
     
-    def __init__(self, catalog_service, resource_service, config: Dict):
+    def __init__(self, catalog_service, resource_service, file_extractor_service, config: Dict):
         """
         Initialize the IDS Consumer Interface
         
         Args:
             catalog_service: Instance of ConsumerCatalogService
             resource_service: Instance of ConsumerResourceService
+            file_extractor_service: Instance of FileExtractorService
             config: Configuration dictionary
         """
         self.catalog_service = catalog_service
         self.resource_service = resource_service
+        self.file_extractor_service = file_extractor_service
         self.config = config
         
         logger.info("IDS_ConsumerInterface initialized")
@@ -72,6 +76,14 @@ class IDS_ConsumerInterface:
         @app.post("/api/IDSconnector/clear-cache")
         async def clear_resources_cache():
             return await self.clear_resources_cache()
+        
+        # File extraction endpoint
+        @app.get("/api/IDSconnector/extract_file", tags=["IDSconnector-consumer"])
+        async def extract_file(
+            data_path: str = Query(..., description="Path to the data source containing file"),
+            return_format: str = Query("json", description="Response format: 'json' or 'binary'")
+        ):
+            return await self.extract_file(data_path, return_format)
         
         # Consumer info endpoint
         @app.get("/api/IDSconnector/SDT/info")
@@ -269,18 +281,47 @@ class IDS_ConsumerInterface:
                     }
                 )
             
-            # Format the response based on data_type
-            response_data = None
+            # Check if the resource contains an embedded file
+            file_response = self.file_extractor_service.extract_from_resource(matching_resource)
             
-            if data_type.lower() == "json":
-                # Return the resource as JSON
-                response_data = json.dumps(matching_resource)
-            elif data_type.lower() == "csv":
-                # Convert resource data to CSV format
-                response_data = self._convert_to_csv(matching_resource)
+            if file_response:
+                logger.info(f"File detected in resource, extracting as {data_type}")
+                
+                # If a file was found, return it according to requested data_type
+                if data_type.lower() == "file" or data_type.lower() == "binary":
+                    # Return the file extraction response
+                    return {
+                        "data_type": "file",
+                        "data": json.dumps(file_response)
+                    }
+                elif data_type.lower() == "json":
+                    # Return both resource and extracted file info
+                    combined_response = {
+                        "resource": matching_resource,
+                        "extracted_file": file_response
+                    }
+                    response_data = json.dumps(combined_response)
+                else:
+                    # For other types, just include file metadata
+                    response_data = json.dumps({
+                        "resource_id": matching_resource.get('@id', 'unknown'),
+                        "file_metadata": file_response.get("metadata", {}),
+                        "file_available": True
+                    })
             else:
-                # For other data types, return as string
-                response_data = str(matching_resource)
+                # No file detected, proceed with normal resource handling
+                # Format the response based on data_type
+                response_data = None
+                
+                if data_type.lower() == "json":
+                    # Return the resource as JSON
+                    response_data = json.dumps(matching_resource)
+                elif data_type.lower() == "csv":
+                    # Convert resource data to CSV format
+                    response_data = self._convert_to_csv(matching_resource)
+                else:
+                    # For other data types, return as string
+                    response_data = str(matching_resource)
             
             # Return response matching the schema
             return {
@@ -377,6 +418,137 @@ class IDS_ConsumerInterface:
         """
         self.resource_service.clear_cache()
         return {'message': 'Resources cache cleared successfully'}
+    
+    # ========================================================================
+    # File Extraction Handlers
+    # ========================================================================
+    
+    async def extract_file(self, data_path: str, return_format: str = "json"):
+        """
+        Extract file from a resource
+        
+        Args:
+            data_path: Path to the data source containing file
+            return_format: Response format ('json' or 'binary')
+        
+        Returns:
+            File data in requested format
+        """
+        try:
+            logger.info(f"Extracting file from data_path: {data_path}, format: {return_format}")
+            
+            # Get all resources
+            resources = self.resource_service.get_all_text_resources()
+            
+            if not resources:
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "code": "NOT_FOUND",
+                        "message": f"No resources available"
+                    }
+                )
+            
+            # Find the matching resource
+            matching_resource = None
+            
+            # Search strategies (same as in get_data_request)
+            for resource in resources:
+                resource_id = resource.get('@id', '')
+                resource_name = resource_id.split('/')[-1]
+                
+                if data_path == resource_name or data_path in resource_id:
+                    matching_resource = resource
+                    break
+            
+            if not matching_resource:
+                # Try matching by title or description
+                for resource in resources:
+                    titles = resource.get('ids:title', [])
+                    for title in titles:
+                        if data_path.lower() in title.get('@value', '').lower():
+                            matching_resource = resource
+                            break
+                    if matching_resource:
+                        break
+            
+            if not matching_resource:
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "code": "NOT_FOUND",
+                        "message": f"No resource found for data_path: {data_path}"
+                    }
+                )
+            
+            # Extract file from the resource
+            file_response = self.file_extractor_service.extract_from_resource(matching_resource)
+            
+            if not file_response:
+                # Try to extract from description field directly
+                file_bytes, metadata, data_type = self.file_extractor_service.extract_file_from_json(matching_resource)
+                
+                if file_bytes and metadata:
+                    file_response = self.file_extractor_service.create_file_response(
+                        file_bytes, metadata, data_type
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=404,
+                        detail={
+                            "code": "NO_FILE",
+                            "message": f"No extractable file found in resource: {data_path}"
+                        }
+                    )
+            
+            # Return based on format
+            if return_format == "binary" and file_response.get("encoding") == "base64":
+                # Return raw binary data
+                binary_data = base64.b64decode(file_response["data"])
+                metadata = file_response["metadata"]
+                
+                mime_type = metadata.get("mime_type", "application/octet-stream")
+                filename = metadata.get("filename", "extracted_file")
+                
+                # Add extension if missing
+                extension = self.file_extractor_service.get_file_extension(metadata)
+                if extension and not '.' in filename:
+                    filename += extension
+                
+                return StreamingResponse(
+                    io.BytesIO(binary_data),
+                    media_type=mime_type,
+                    headers={
+                        "Content-Disposition": f"attachment; filename={filename}"
+                    }
+                )
+            else:
+                # Return JSON response
+                return JSONResponse(content=file_response)
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in extract_file: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "code": "INTERNAL_ERROR",
+                    "message": f"Error extracting file: {str(e)}"
+                }
+            )
+    
+    async def download_file(self, data_path: str):
+        """
+        Download file directly as binary
+        
+        Args:
+            data_path: Path to the data source containing file
+        
+        Returns:
+            Binary file stream
+        """
+        return await self.extract_file(data_path, return_format="binary")
     
     # ========================================================================
     # Consumer Info Handler

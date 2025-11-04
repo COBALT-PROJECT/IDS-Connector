@@ -9,7 +9,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 IMAGE_NAME="${IMAGE_NAME:-ids-connector-sdt}"
-IMAGE_TAG="${IMAGE_TAG:-v1.0.0}"
+IMAGE_TAG="${IMAGE_TAG:-v2.0.1}"
 
 # Parse command line arguments
 while [[ "$#" -gt 0 ]]; do
@@ -65,8 +65,8 @@ if [ $? -eq 0 ]; then
     docker images ${IMAGE_NAME}:${IMAGE_TAG}
     
     # Optional: Tag as latest
-    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
-    echo -e "${GREEN}✓ Also tagged as ${IMAGE_NAME}:latest${NC}"
+    #docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
+    #echo -e "${GREEN}✓ Also tagged as ${IMAGE_NAME}:latest${NC}"
     
     echo ""
     echo -e "${GREEN}Build completed successfully!${NC}"
