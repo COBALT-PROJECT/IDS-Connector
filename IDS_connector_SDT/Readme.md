@@ -194,6 +194,16 @@ The service communicates with the tc-consumer pod internally within the Kubernet
 - Initial resource fetch may take time depending on the number of resources
 - Use the `/api/IDSconnector/clear-cache` endpoint to force refresh
 
+## Files extraction from IDS SDT connector
+
+- Refer the file named unified_file_extractor.py
+```bash
+# To run the unified file extractor, execute
+python3 unified_file_extractor.py sample_response.json
+```
+- Incorporate functionality of unified_file_extractor.py as a class in the SDT component
+- Upon execution the file parses the reply from the IDS SDT and recreates the file that was sent to the IDS ToE.
+
 ## Support
 
 For issues or questions:
