@@ -78,6 +78,72 @@ paths:
                   value:
                     code: "INTERNAL_ERROR"
                     message: "Unexpected error while fetching data."
+  /api/IDSconnector/extract_file:
+    get:
+      summary: Extract file from a resource
+      operationId: extractFile
+      tags: [IDSconnector-consumer]
+      parameters:
+        - name: data_path
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Path to the data source containing file
+        - name: return_format
+          in: query
+          required: false
+          schema:
+            type: string
+            default: "json"
+            enum: ["json", "binary"]
+          description: "Response format: 'json' or 'binary'"
+      responses:
+        '200':
+          description: File successfully extracted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/file_response'
+              examples:
+                jsonResponse:
+                  value:
+                    data: "base64encodeddata..."
+                    encoding: "base64"
+                    metadata:
+                      filename: "document.pdf"
+                      mime_type: "application/pdf"
+                      size: 1024
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Resource or file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                notFound:
+                  value:
+                    code: "NOT_FOUND"
+                    message: "No resource found for data_path: /path/to/resource"
+                noFile:
+                  value:
+                    code: "NO_FILE"
+                    message: "No extractable file found in resource: /path/to/resource"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                serverError:
+                  value:
+                    code: "INTERNAL_ERROR"
+                    message: "Error extracting file: Unexpected error"
 components:
   schemas:
     data_request:
@@ -108,6 +174,33 @@ components:
           type: string
           description: The actual data payload
           example: "timestamp,value\n2025-09-30T10:25:00Z,23.4\n"
+    file_response:
+      type: object
+      required: [data, encoding, metadata]
+      properties:
+        data:
+          type: string
+          description: Base64 encoded file data
+          example: "base64encodeddata..."
+        encoding:
+          type: string
+          description: Encoding type
+          example: "base64"
+        metadata:
+          type: object
+          properties:
+            filename:
+              type: string
+              description: Name of the extracted file
+              example: "document.pdf"
+            mime_type:
+              type: string
+              description: MIME type of the file
+              example: "application/pdf"
+            size:
+              type: integer
+              description: File size in bytes
+              example: 1024
     error:
       type: object
       required: [code, message]
