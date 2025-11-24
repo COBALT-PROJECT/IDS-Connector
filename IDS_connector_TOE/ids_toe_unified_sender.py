@@ -18,6 +18,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # Configuration
 IDS_TOE_URL = "http://localhost:8005/api/IDSconnector/post_data"  # Change to your IDS TOE URL
 # For pod access: "http://ids-connector-toe-service:8005/api/IDSconnector/post_data"
+TOE_ID = "00000000-0000-0000-0000-000000000000"  # Default TOE ID - change this as needed
 
 def analyze_python_file(content):
     """Analyze Python file content and extract metadata"""
@@ -87,6 +88,7 @@ def process_file(file_path):
         }
         
         payload_content = {
+            "toe_id": TOE_ID,
             "type": "zip_file",
             "metadata": metadata,
             "data": zip_base64
@@ -99,18 +101,22 @@ def process_file(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             notebook_content = json.load(f)
         
+        notebook_json = json.dumps(notebook_content, indent=2)
+        notebook_base64 = base64.b64encode(notebook_json.encode('utf-8')).decode('utf-8')
+        
         notebook_meta = analyze_notebook_file(notebook_content)
         metadata = {
             **base_metadata,
-            "encoding": "utf-8",
+            "encoding": "base64",
             "mime_type": "application/x-ipynb+json",
             **notebook_meta
         }
         
         payload_content = {
+            "toe_id": TOE_ID,
             "type": "jupyter_notebook",
             "metadata": metadata,
-            "content": notebook_content
+            "content": notebook_base64
         }
         
         resource_type = "notebook"
@@ -120,18 +126,21 @@ def process_file(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             python_content = f.read()
         
+        python_base64 = base64.b64encode(python_content.encode('utf-8')).decode('utf-8')
+        
         python_meta = analyze_python_file(python_content)
         metadata = {
             **base_metadata,
-            "encoding": "utf-8",
+            "encoding": "base64",
             "mime_type": "text/x-python",
             **python_meta
         }
         
         payload_content = {
+            "toe_id": TOE_ID,
             "type": "python_script",
             "metadata": metadata,
-            "content": python_content
+            "content": python_base64
         }
         
         resource_type = "python"
@@ -308,6 +317,7 @@ def main():
     ids_data_as_string = json.dumps(ids_resource)
     payload = {
         "data_type": "json",
+        "toe_id": TOE_ID,
         "data": ids_data_as_string
     }
     

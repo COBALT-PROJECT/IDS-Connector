@@ -7,7 +7,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 # Configuration
 IMAGE_NAME="ids-connector-sdt"
-IMAGE_TAG="v2.0.1"
+IMAGE_TAG="v2.0.2"
 
 # YAML files to deploy in order
 YAML_FILES=(

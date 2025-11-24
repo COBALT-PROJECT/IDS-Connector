@@ -417,7 +417,7 @@ class IDS_ConsumerInterface:
             dict: Success message
         """
         self.resource_service.clear_cache()
-        return {'message': 'Resources cache cleared successfully'}
+        return Response(status_code=204)
     
     # ========================================================================
     # File Extraction Handlers
