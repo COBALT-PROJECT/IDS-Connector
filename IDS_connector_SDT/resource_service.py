@@ -46,6 +46,9 @@ class ConsumerResourceService:
             'total_count': 0
         }
         
+        # Set to track cleared resource IDs (to ignore in future fetches)
+        self._cleared_resource_ids = set()
+        
         logger.info(f"ConsumerResourceService initialized for {consumer_base_url}")
     
     def get_consumer_catalog(self) -> Optional[Dict]:
@@ -133,13 +136,35 @@ class ConsumerResourceService:
             return None
     
     def get_all_text_resources(self, force_refresh: bool = False) -> List[Dict]:
-        """Retrieve all text resources from the Consumer"""
-        # Check cache if not forcing refresh
-        if not force_refresh and self._resources_cache['resources']:
+        """Retrieve all text resources from the Consumer, filtering out cleared ones"""
+        # Always fetch fresh if cleared resources exist or force_refresh is True
+        if force_refresh or self._cleared_resource_ids:
+            logger.info("Forcing refresh due to cleared resources or explicit request")
+            # Fetch fresh data
+            all_resources = self._fetch_all_resources()
+        elif self._resources_cache['resources']:
             cache_age = self._get_cache_age()
             logger.info(f"Using cached resources (age: {cache_age:.0f}s)")
             return self._resources_cache['resources']
+        else:
+            all_resources = self._fetch_all_resources()
         
+        # Filter out cleared resources
+        if self._cleared_resource_ids:
+            filtered_resources = [
+                res for res in all_resources 
+                if res.get('@id') not in self._cleared_resource_ids
+            ]
+            logger.info(f"Filtered out {len(all_resources) - len(filtered_resources)} cleared resources")
+            all_resources = filtered_resources
+        
+        # Update cache with filtered results
+        self._update_cache(all_resources)
+        
+        return all_resources
+    
+    def _fetch_all_resources(self) -> List[Dict]:
+        """Internal method to fetch all resources from Consumer (extracted from get_all_text_resources)"""
         logger.info("Starting text resource retrieval from Consumer")
         
         all_resources = []
@@ -170,9 +195,6 @@ class ConsumerResourceService:
                 logger.info(f"  ✓ Successfully retrieved {resource_name}")
             else:
                 logger.error(f"  ✗ Failed to retrieve {resource_name}")
-        
-        # Update cache
-        self._update_cache(all_resources)
         
         # Summary
         logger.info(f"Resource retrieval complete: {len(all_resources)}/{len(resource_ids)} successful")
@@ -232,8 +254,39 @@ class ConsumerResourceService:
         return (datetime.now() - self._resources_cache['timestamp']).total_seconds()
     
     def clear_cache(self):
-        """Clear the resources cache"""
+        """Clear the resources cache and mark current resources as cleared"""
+        # Add current cached resource IDs to cleared set
+        current_ids = {res.get('@id') for res in self._resources_cache['resources'] if res.get('@id')}
+        self._cleared_resource_ids.update(current_ids)
+        logger.info(f"Marked {len(current_ids)} resources as cleared: {list(current_ids)}")
+        
+        # Clear the cache
         self._resources_cache['resources'] = []
         self._resources_cache['timestamp'] = None
         self._resources_cache['total_count'] = 0
         logger.info("Resources cache cleared")
+    
+    def clear_specific_resources(self, resource_ids: List[str]):
+        """Clear specific resources by their IDs"""
+        if not resource_ids:
+            logger.info("No resources to clear")
+            return
+        
+        # Add specified resource IDs to cleared set
+        self._cleared_resource_ids.update(resource_ids)
+        logger.info(f"Marked {len(resource_ids)} specific resources as cleared")
+        
+        # Remove these resources from cache if they exist
+        if self._resources_cache['resources']:
+            original_count = len(self._resources_cache['resources'])
+            self._resources_cache['resources'] = [
+                res for res in self._resources_cache['resources']
+                if res.get('@id') not in resource_ids
+            ]
+            removed_count = original_count - len(self._resources_cache['resources'])
+            logger.info(f"Removed {removed_count} resources from cache")
+            self._resources_cache['total_count'] = len(self._resources_cache['resources'])
+    
+    def get_cleared_resource_ids(self) -> List[str]:
+        """Get the list of cleared resource IDs"""
+        return list(self._cleared_resource_ids)

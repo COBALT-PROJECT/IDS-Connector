@@ -77,6 +77,11 @@ class IDS_ConsumerInterface:
         async def clear_resources_cache():
             return await self.clear_resources_cache()
         
+        # Get cleared resource IDs endpoint
+        @app.get("/api/IDSconnector/cleared-ids")
+        async def get_cleared_ids():
+            return await self.get_cleared_ids()
+        
         # File extraction endpoint
         @app.get("/api/IDSconnector/extract_file", tags=["IDSconnector-consumer"])
         async def extract_file(
@@ -127,6 +132,111 @@ class IDS_ConsumerInterface:
             'service': 'IDS Consumer Resource API Server',
             'consumer': self.config['consumer_base_url']
         }
+    
+    # ========================================================================
+    # Helper Methods
+    # ========================================================================
+    
+    def _extract_toe_id_from_resource(self, resource: Dict) -> Optional[str]:
+        """
+        Extract toe_id from resource description field
+        
+        Args:
+            resource: Resource dictionary
+        
+        Returns:
+            toe_id if found, None otherwise
+        """
+        try:
+            resource_id = resource.get("@id", "unknown")
+            descriptions = resource.get("ids:description", [])
+            
+            if not descriptions:
+                logger.debug(f"No descriptions found in resource {resource_id}")
+                return None
+            
+            # Get the first description value
+            desc_value = descriptions[0].get("@value", "{}") if isinstance(descriptions[0], dict) else descriptions[0]
+            
+            if not desc_value or desc_value == "{}":
+                logger.debug(f"Empty description value in resource {resource_id}")
+                return None
+            
+            # Log the actual content for debugging
+            logger.info(f"Parsing resource {resource_id.split('/')[-1]}: desc_value type={type(desc_value).__name__}, len={len(str(desc_value))}, preview={str(desc_value)[:150]}")
+            
+            # Try to parse the JSON content
+            if isinstance(desc_value, str):
+                content = None
+                
+                # Strategy 1: Try standard JSON parse
+                try:
+                    content = json.loads(desc_value)
+                    logger.debug(f"✓ Parsed with standard JSON for {resource_id.split('/')[-1]}")
+                except json.JSONDecodeError:
+                    pass
+                
+                # Strategy 2: Try manual unescape of \" then parse
+                # This handles escaped quotes like {\"toe_id\": \"1234\"}
+                if content is None:
+                    try:
+                        # Replace the literal backslash-quote sequence with just quote
+                        unescaped = desc_value.replace('\\', '').replace('""', '"')
+                        logger.info(f"After removing backslashes: {unescaped[:100]}")
+                        content = json.loads(unescaped)
+                        logger.info(f"✓ Parsed with manual unescape for {resource_id.split('/')[-1]}")
+                    except json.JSONDecodeError as e:
+                        logger.info(f"Manual unescape failed: {e}")
+                        pass
+                
+                # Strategy 3: Try double-decode (handles double-escaped JSON like \\\" )
+                if content is None:
+                    try:
+                        # First decode to unescape the string
+                        unescaped = json.loads(desc_value)
+                        # Second decode to parse the actual JSON
+                        if isinstance(unescaped, str):
+                            content = json.loads(unescaped)
+                            logger.debug(f"✓ Parsed with double-decode for {resource_id.split('/')[-1]}")
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                
+                # Strategy 4: Try replacing single quotes with double quotes
+                if content is None:
+                    try:
+                        desc_value_fixed = desc_value.replace("'", '"')
+                        content = json.loads(desc_value_fixed)
+                        logger.debug(f"✓ Parsed with quote replacement for {resource_id.split('/')[-1]}")
+                    except json.JSONDecodeError:
+                        pass
+                
+                # If all strategies failed, log and return None
+                if content is None:
+                    logger.warning(f"Failed to parse description for resource {resource_id.split('/')[-1]}")
+                    logger.debug(f"Failed content preview: {desc_value[:200]}")
+                    return None
+            else:
+                content = desc_value
+            
+            # Check if parsing succeeded
+            if content is None:
+                logger.warning(f"Failed to parse description for resource {resource_id.split('/')[-1]}")
+                return None
+            
+            # Extract toe_id
+            toe_id = content.get("toe_id") if isinstance(content, dict) else None
+            if toe_id:
+                logger.info(f"✓ Extracted toe_id '{toe_id}' from resource {resource_id.split('/')[-1]}")
+            else:
+                logger.debug(f"No toe_id field found in resource {resource_id.split('/')[-1]}")
+            return toe_id
+            
+        except Exception as e:
+            logger.error(f"Exception extracting toe_id from resource {resource.get('@id', 'unknown')}: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+        
+        return None
     
     # ========================================================================
     # Main Data Request Handler (YAML Spec Compatible)
@@ -183,15 +293,23 @@ class IDS_ConsumerInterface:
             
             logger.info(f"Processing data request - toe_id: {toe_id}, data_type: {data_type}, data_path: {data_path}")
             
-            # Check if requesting all resources and clear cache if so
-            if data_path.lower() in ['all', '*', 'resources']:
-                # Clear cache before fetching all resources
-                logger.info("Clearing cache for 'all' resources request")
-                self.resource_service.clear_cache()
-                self.catalog_service.clear_cache()
+            # Get all text resources first (without clearing cache)
+            force_refresh = bool(self.resource_service._cleared_resource_ids)
+            resources = self.resource_service.get_all_text_resources(force_refresh=force_refresh)
             
-            # Get all text resources
-            resources = self.resource_service.get_all_text_resources()
+            # Filter resources based on toe_id if provided
+            filtered_resources = resources
+            if toe_id:
+                original_count = len(resources)
+                # Filter by checking toe_id in description field
+                filtered_resources = [
+                    res for res in resources 
+                    if self._extract_toe_id_from_resource(res) == toe_id
+                ]
+                logger.info(f"Filtered resources by toe_id '{toe_id}': {original_count} -> {len(filtered_resources)}")
+            
+            # Use filtered resources for the rest of the processing
+            resources = filtered_resources
             
             if not resources:
                 raise HTTPException(
@@ -216,6 +334,13 @@ class IDS_ConsumerInterface:
                         "total": len(resources),
                         "resources": resources
                     })
+                
+                # Clear only the filtered resources AFTER preparing the response
+                # This ensures they won't be returned on future requests
+                logger.info(f"Clearing cache for {len(resources)} filtered resources")
+                resource_ids_to_clear = [res.get('@id') for res in resources if res.get('@id')]
+                self.resource_service.clear_specific_resources(resource_ids_to_clear)
+                self.catalog_service.clear_cache()
                 
                 return {
                     "data_type": data_type,
@@ -418,6 +543,19 @@ class IDS_ConsumerInterface:
         """
         self.resource_service.clear_cache()
         return Response(status_code=204)
+    
+    async def get_cleared_ids(self):
+        """
+        Get the list of cleared resource IDs
+        
+        Returns:
+            dict: List of cleared resource IDs
+        """
+        cleared_ids = self.resource_service.get_cleared_resource_ids()
+        return {
+            "cleared_resource_ids": cleared_ids,
+            "count": len(cleared_ids)
+        }
     
     # ========================================================================
     # File Extraction Handlers

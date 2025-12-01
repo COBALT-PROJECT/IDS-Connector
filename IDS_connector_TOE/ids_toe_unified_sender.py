@@ -18,7 +18,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # Configuration
 IDS_TOE_URL = "http://localhost:8005/api/IDSconnector/post_data"  # Change to your IDS TOE URL
 # For pod access: "http://ids-connector-toe-service:8005/api/IDSconnector/post_data"
-TOE_ID = "00000000-0000-0000-0000-000000000000"  # Default TOE ID - change this as needed
+TOE_ID = "1234"  # Default TOE ID - change this as needed
 
 def analyze_python_file(content):
     """Analyze Python file content and extract metadata"""
