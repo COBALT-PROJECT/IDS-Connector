@@ -1,3 +1,5 @@
+#this one posts directly into trueconnector a text resource containing a json payload as text. instead use post_ids_toe_wrapper.py, you post into ids-toe which then posts into trueconnector
+
 import requests
 import json
 from datetime import datetime
@@ -61,9 +63,13 @@ json_payload_as_text = '''
 }
 '''
 
-# Credentials for Basic Authentication
-username = 'apiUser'
-password = 'passwordApiUser'
+# Credentials for Basic Authentication in TrueConnector as docker containers
+#username = 'apiUser'
+#password = 'passwordApiUser'
+
+# Crexentials for Basic Authentication in TrueConnector as pod in k8s
+username = 'admin' #or 'connector'
+password = 'password'
 
 # The IDS TrueConnector API endpoint URL
 url = 'https://localhost:8090/api/offeredResource/'

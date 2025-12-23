@@ -19,7 +19,8 @@ spec:
     targetPort: 9000
   - name: "8090"
     port: 8090
-    targetPort: 8443  # Fixed: ECC HTTPS Management
+    targetPort: 8443  # Fixed: ECC HTTPS Management (THERE IS A PORT ERROR IN THE GITHUB REPO OF TRUECONNECTOR, THIS IS THE CORRECTED VERSION)
+    nodePort: 30578  # set a nodePort for pod sync to access from outside the cluster
   - name: "8081"
     port: 8081
     targetPort: 8081  # Added: ECC HTTP Management
