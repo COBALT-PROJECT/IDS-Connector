@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  ids-sync:  
+    build: .
+    image: allenabishek/cross-vm-ids-sync:v1.0.0
+    container_name: ids-sync-service
+    ports:
+      - "8080:8080"
+    environment: 
+      - PROVIDER_URL=https://10.10.2.20:30578
+      - CONSUMER_URL=https://10.0.2.15:8444
+      - IDS_USERNAME=admin
+      - IDS_PASSWORD=password
+      - POLL_INTERVAL_SECONDS=10
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    user: "1000:1000"  # ← ADD THIS LINE to match idsuser

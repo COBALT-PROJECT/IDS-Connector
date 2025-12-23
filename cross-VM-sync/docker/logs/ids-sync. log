@@ -1,0 +1,96 @@
+2025-12-23 13:11:12,618 - ids-sync - INFO - 🚀 Cross-VM IDS Sync Service starting...
+2025-12-23 13:11:12,618 - ids-sync - INFO - 🚀 Cross-VM IDS Provider-Consumer Sync Service starting...
+2025-12-23 13:11:12,619 - ids-sync - INFO - 📍 VM1 (this machine) → VM2 (tc-provider)
+2025-12-23 13:11:12,619 - ids-sync - INFO - 🏥 Health check server started on port 8080
+2025-12-23 13:11:12,619 - ids-sync - INFO - 📡 Provider URL: https://10.10.2.20:30578
+2025-12-23 13:11:12,619 - ids-sync - INFO -    Endpoints: /health, /metrics, /resources
+2025-12-23 13:11:12,620 - ids-sync - INFO - 📥 Consumer URL: https://10.0.2.15:8444
+2025-12-23 13:11:12,620 - ids-sync - INFO - ⏱️  Poll Interval: 10 seconds
+2025-12-23 13:11:12,621 - ids-sync - INFO - 🔄 Max Retries: 3
+2025-12-23 13:11:12,621 - ids-sync - INFO - 🏥 Health Check Port: 8080
+2025-12-23 13:11:12,621 - ids-sync - INFO - 📝 Log Level: NOTSET
+2025-12-23 13:11:12,622 - ids-sync - INFO - 🔍 Testing provider connectivity...
+2025-12-23 13:11:15,696 - ids-sync - WARNING - ⚠️  Connection failed (attempt 1/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:11:20,748 - ids-sync - WARNING - ⚠️  Connection failed (attempt 2/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:11:27,825 - ids-sync - WARNING - ⚠️  Connection failed (attempt 3/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:11:27,825 - ids-sync - ERROR - ❌ All 3 attempts failed for https://10.10.2.20:30578/api/selfDescription/
+2025-12-23 13:11:27,825 - ids-sync - ERROR - ❌ Provider not reachable at https://10.10.2.20:30578
+2025-12-23 13:11:27,825 - ids-sync - ERROR - ❌ Cannot reach provider at startup
+2025-12-23 13:11:27,825 - ids-sync - ERROR - 📋 Troubleshooting checklist:
+2025-12-23 13:11:27,825 - ids-sync - ERROR -    1. Is VM2 deployed and running?
+2025-12-23 13:11:27,825 - ids-sync - ERROR -    2. Is tc-provider service accessible?
+2025-12-23 13:11:27,825 - ids-sync - ERROR -    3. Check:  kubectl get svc tc-provider (on VM2)
+2025-12-23 13:11:27,825 - ids-sync - ERROR -    4. Is firewall allowing port 30578?
+2025-12-23 13:11:27,825 - ids-sync - ERROR -    5. Can you ping VM2 from VM1?
+2025-12-23 13:11:27,825 - ids-sync - ERROR -    6. Test: curl -k https://<VM2-IP>:30578/api/selfDescription/
+2025-12-23 13:11:27,825 - ids-sync - WARNING - ⚠️  Continuing anyway, will retry on each cycle...
+2025-12-23 13:11:27,825 - ids-sync - INFO - 🔄 Starting synchronization cycle...
+2025-12-23 13:11:30,893 - ids-sync - WARNING - ⚠️  Connection failed (attempt 1/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:11:35,954 - ids-sync - WARNING - ⚠️  Connection failed (attempt 2/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:11:43,026 - ids-sync - WARNING - ⚠️  Connection failed (attempt 3/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:11:43,030 - ids-sync - ERROR - ❌ All 3 attempts failed for https://10.10.2.20:30578/api/selfDescription/
+2025-12-23 13:11:43,030 - ids-sync - ERROR - ❌ Failed to get Provider catalog: No response
+2025-12-23 13:11:43,031 - ids-sync - ERROR - ❌ Cannot proceed without Provider catalog
+2025-12-23 13:11:53,032 - ids-sync - INFO - 🔄 Starting synchronization cycle...
+2025-12-23 13:11:56,109 - ids-sync - WARNING - ⚠️  Connection failed (attempt 1/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:12:01,169 - ids-sync - WARNING - ⚠️  Connection failed (attempt 2/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:12:08,242 - ids-sync - WARNING - ⚠️  Connection failed (attempt 3/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:12:08,242 - ids-sync - ERROR - ❌ All 3 attempts failed for https://10.10.2.20:30578/api/selfDescription/
+2025-12-23 13:12:08,242 - ids-sync - ERROR - ❌ Failed to get Provider catalog: No response
+2025-12-23 13:12:08,242 - ids-sync - ERROR - ❌ Cannot proceed without Provider catalog
+2025-12-23 13:12:11,287 - ids-sync - INFO - 📡 Received signal 15, shutting down gracefully...
+2025-12-23 13:12:18,245 - ids-sync - INFO - 🛑 IDS Sync Service stopped
+2025-12-23 13:12:18,246 - ids-sync - INFO - 📊 Final Stats:
+2025-12-23 13:12:18,247 - ids-sync - INFO -    ⏰ Uptime: 0:01:05.627831
+2025-12-23 13:12:18,247 - ids-sync - INFO -    📈 Success Rate: 0.0%
+2025-12-23 13:12:18,247 - ids-sync - INFO -    ✅ Total Synced: 0
+2025-12-23 13:12:18,248 - ids-sync - INFO -    ❌ Errors: 0
+2025-12-23 13:12:18,248 - ids-sync - INFO -    📋 Resources Tracked: 0
+2025-12-23 13:15:08,715 - ids-sync - INFO - 🚀 Cross-VM IDS Sync Service starting...
+2025-12-23 13:15:08,715 - ids-sync - INFO - 🚀 Cross-VM IDS Provider-Consumer Sync Service starting...
+2025-12-23 13:15:08,715 - ids-sync - INFO - 📍 VM1 (this machine) → VM2 (tc-provider)
+2025-12-23 13:15:08,717 - ids-sync - INFO - 📡 Provider URL: https://10.10.2.20:30578
+2025-12-23 13:15:08,717 - ids-sync - INFO - 📥 Consumer URL: https://10.0.2.15:8444
+2025-12-23 13:15:08,717 - ids-sync - INFO - ⏱️  Poll Interval: 10 seconds
+2025-12-23 13:15:08,718 - ids-sync - INFO - 🔄 Max Retries: 3
+2025-12-23 13:15:08,718 - ids-sync - INFO - 🏥 Health Check Port: 8080
+2025-12-23 13:15:08,718 - ids-sync - INFO - 📝 Log Level: NOTSET
+2025-12-23 13:15:08,718 - ids-sync - INFO - 🔍 Testing provider connectivity...
+2025-12-23 13:15:08,717 - ids-sync - INFO - 🏥 Health check server started on port 8080
+2025-12-23 13:15:08,719 - ids-sync - INFO -    Endpoints: /health, /metrics, /resources
+2025-12-23 13:15:11,789 - ids-sync - WARNING - ⚠️  Connection failed (attempt 1/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:15:16,849 - ids-sync - WARNING - ⚠️  Connection failed (attempt 2/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:15:23,917 - ids-sync - WARNING - ⚠️  Connection failed (attempt 3/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:15:23,918 - ids-sync - ERROR - ❌ All 3 attempts failed for https://10.10.2.20:30578/api/selfDescription/
+2025-12-23 13:15:23,919 - ids-sync - ERROR - ❌ Provider not reachable at https://10.10.2.20:30578
+2025-12-23 13:15:23,919 - ids-sync - ERROR - ❌ Cannot reach provider at startup
+2025-12-23 13:15:23,920 - ids-sync - ERROR - 📋 Troubleshooting checklist:
+2025-12-23 13:15:23,920 - ids-sync - ERROR -    1. Is VM2 deployed and running?
+2025-12-23 13:15:23,921 - ids-sync - ERROR -    2. Is tc-provider service accessible?
+2025-12-23 13:15:23,921 - ids-sync - ERROR -    3. Check:  kubectl get svc tc-provider (on VM2)
+2025-12-23 13:15:23,922 - ids-sync - ERROR -    4. Is firewall allowing port 30578?
+2025-12-23 13:15:23,922 - ids-sync - ERROR -    5. Can you ping VM2 from VM1?
+2025-12-23 13:15:23,922 - ids-sync - ERROR -    6. Test: curl -k https://<VM2-IP>:30578/api/selfDescription/
+2025-12-23 13:15:23,922 - ids-sync - WARNING - ⚠️  Continuing anyway, will retry on each cycle...
+2025-12-23 13:15:23,923 - ids-sync - INFO - 🔄 Starting synchronization cycle...
+2025-12-23 13:15:26,993 - ids-sync - WARNING - ⚠️  Connection failed (attempt 1/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:15:32,082 - ids-sync - WARNING - ⚠️  Connection failed (attempt 2/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:15:39,189 - ids-sync - WARNING - ⚠️  Connection failed (attempt 3/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:15:39,190 - ids-sync - ERROR - ❌ All 3 attempts failed for https://10.10.2.20:30578/api/selfDescription/
+2025-12-23 13:15:39,191 - ids-sync - ERROR - ❌ Failed to get Provider catalog: No response
+2025-12-23 13:15:39,191 - ids-sync - ERROR - ❌ Cannot proceed without Provider catalog
+2025-12-23 13:15:49,193 - ids-sync - INFO - 🔄 Starting synchronization cycle...
+2025-12-23 13:15:52,269 - ids-sync - WARNING - ⚠️  Connection failed (attempt 1/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:15:57,430 - ids-sync - WARNING - ⚠️  Connection failed (attempt 2/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:15:58,015 - ids-sync - INFO - 📡 Received signal 15, shutting down gracefully...
+2025-12-23 13:16:04,493 - ids-sync - WARNING - ⚠️  Connection failed (attempt 3/3): HTTPSConnectionPool(host='10.10.2.20', port=30578): Max retries exceeded with url: /api/selfDescript
+2025-12-23 13:16:04,493 - ids-sync - ERROR - ❌ All 3 attempts failed for https://10.10.2.20:30578/api/selfDescription/
+2025-12-23 13:16:04,493 - ids-sync - ERROR - ❌ Failed to get Provider catalog: No response
+2025-12-23 13:16:04,493 - ids-sync - ERROR - ❌ Cannot proceed without Provider catalog
+2025-12-23 13:16:04,493 - ids-sync - INFO - 🛑 IDS Sync Service stopped
+2025-12-23 13:16:04,494 - ids-sync - INFO - 📊 Final Stats:
+2025-12-23 13:16:04,494 - ids-sync - INFO -    ⏰ Uptime: 0:00:55.778713
+2025-12-23 13:16:04,494 - ids-sync - INFO -    📈 Success Rate: 0.0%
+2025-12-23 13:16:04,494 - ids-sync - INFO -    ✅ Total Synced: 0
+2025-12-23 13:16:04,494 - ids-sync - INFO -    ❌ Errors: 0
+2025-12-23 13:16:04,494 - ids-sync - INFO -    📋 Resources Tracked: 0
