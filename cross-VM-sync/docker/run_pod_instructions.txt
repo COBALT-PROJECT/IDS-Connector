@@ -1,0 +1,6 @@
+To run the cross VM synchronization service as a pod, execute the following command:
+- kubectl apply -f crossVM_ids_sync_service.yml
+
+NOTE: run this after you have deployed the IDS-SDT.
+
+to see the logs of the pod once it has been deployed: kubectl logs <pod name> here: kubectl logs <pod name> here: ids-sync-service-blah-blah
