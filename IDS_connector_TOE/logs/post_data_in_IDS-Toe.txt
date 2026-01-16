@@ -1,0 +1,30 @@
+allen@dummytoe:~/IDS-Connector/IDS_connector_TOE$ python3 ids_toe_unified_sender.py test_data.zip 
+Processing file: test_data.zip
+======================================================================
+POST Request to IDS TOE Provider - Zip File Upload
+======================================================================
+URL: http://localhost:8005/api/IDSconnector/post_data
+Resource ID: zip-resource-20260116-090239
+Timestamp: 2026-01-16T09:02:39.638656Z
+File: test_data.zip
+  - Type: zip
+  - Size: 829 bytes
+
+Payload size: ~4.37 KB
+
+Sending request...
+======================================================================
+
+Response Status Code: 200
+----------------------------------------------------------------------
+✓ SUCCESS! Zip file posted to IDS TOE successfully
+
+Response body:
+{
+  "data_type": "json",
+  "data": "{\"@context\": {\"ids\": \"https://w3id.org/idsa/core/\", \"idsc\": \"https://w3id.org/idsa/code/\"}, \"@type\": \"ids:TextResource\", \"@id\": \"https://w3id.org/idsa/autogen/textResource/zip-resource-20260116-090239\", \"ids:language\": [{\"@id\": \"https://w3id.org/idsa/code/EN\"}], \"ids:version\": \"1.0.0\", \"ids:keyword\": [{\"@value\": \"ZIP File Upload - Engineering Ingegneria Informatica SpA TEST\", \"@type\": \"http://www.w3.org/2001/XMLSchema#string\"}], \"ids:contentType\": {\"@id\": \"https://w3id.org/idsa/code/SCHEMA_DEFINITION\"}, \"ids:description\": [{\"@value\": \"{\\\"toe_id\\\": \\\"1234\\\", \\\"type\\\": \\\"zip_file\\\", \\\"metadata\\\": {\\\"filename\\\": \\\"test_data.zip\\\", \\\"size_bytes\\\": 829, \\\"upload_timestamp\\\": \\\"2026-01-16T09:02:39.638656Z\\\", \\\"encoding\\\": \\\"base64\\\", \\\"mime_type\\\": \\\"application/zip\\\"}, \\\"data\\\": \\\"UEsDBBQAAAAIAIVgW1tOk2DUHgEAAPEBAAAOAAAAdGVzdF9kYXRhLmpzb25tUcFugzAMvfcrEOclJLRdW05D1Q477VBOvUHwWLaAURKQqqr/PqeA1En1wZHj52c/+7qKoljXcRbFyuBQM+fRlg3ELyHhdQvOl20f8qlIt0wKlu4KmWZik0nBt3spRXqe0HeCE9hRK/i4U4rZ2BO32NwJ0Uw1x8CiaYrofdQ1dApcdERjQHmN3YS24HCwCgh/pZh+3vylD2EcXt4gNgbKXjuusE3UQsmx82iwufBR8s/qhzhPD3qDBgtl6FOQ8ln0mokdE4dCimy9zeSep5vXgyTd4rxUTQtM3FA5ZXUfCFwiZ2NP3GLJoqSxOPQuqaHFhbQrpxE8neDfWSjXD5XRKle0HEeYr9I4eFSANlTmtLUuyivtvuE3pvRtdfsDUEsDBBQAAAAIAIVgW1skWYUyWQAAAFoAAAAMAAAAbWV0YWRhdGEudHh0DccxDkBAEAXQ3in+BcjOImRbFCoSKt0kO0SC3TDuz+vexGc8BKcoe1bGuv9bww2VR/drw9KPeOMR2EMD+nbCPHRJcwureAdrbJmSSW01k3WmcGSysiai/ANQSwMEFAAAAAgAhWBbWy/9PoWEAAAAmAAAAAoAAABjb25maWcuaW5pHY3BCsIwEETv+xX9giRSBBE8CK0giBf1VHoISUgDaTZstvX3TTy+mcfMNIy36+fxnqE42h11ly6i0XHBwpCRuAYnpY6QCRkNxsoLcwYOq8Ot1b0CmO7Da27OHux/pDnlLOW3D1YgeemSJysNpuQMI0mIOvlNe1fl8Qn1ugRMFQ5CCQU/UEsBAhQDFAAAAAgAhWBbW06TYNQeAQAA8QEAAA4AAAAAAAAAAAAAAIABAAAAAHRlc3RfZGF0YS5qc29uUEsBAhQDFAAAAAgAhWBbWyRZhTJZAAAAWgAAAAwAAAAAAAAAAAAAAIABSgEAAG1ldGFkYXRhLnR4dFBLAQIUAxQAAAAIAIVgW1sv/T6FhAAAAJgAAAAKAAAAAAAAAAAAAACAAc0BAABjb25maWcuaW5pUEsFBgAAAAADAAMArgAAAHkCAAAAAA==\\\"}\", \"@type\": \"http://www.w3.org/2001/XMLSchema#string\"}], \"ids:created\": {\"@value\": \"2026-01-16T09:02:39.638656Z\", \"@type\": \"http://www.w3.org/2001/XMLSchema#dateTimeStamp\"}, \"ids:theme\": [], \"ids:contractOffer\": [{\"@type\": \"ids:ContractOffer\", \"@id\": \"https://w3id.org/idsa/autogen/contractOffer/zip-resource-20260116-090239\", \"ids:permission\": [{\"@type\": \"ids:Permission\", \"@id\": \"https://w3id.org/idsa/autogen/permission/zip-resource-20260116-090239\", \"ids:target\": {\"@id\": \"http://w3id.org/engrd/connector/artifact/zip\"}, \"ids:description\": [{\"@value\": \"provide-access\", \"@type\": \"http://www.w3.org/2001/XMLSchema#string\"}], \"ids:constraint\": [{\"@type\": \"ids:Constraint\", \"@id\": \"https://w3id.org/idsa/autogen/constraint/zip-resource-20260116-090239\", \"ids:operator\": {\"@id\": \"https://w3id.org/idsa/code/AFTER\"}, \"ids:leftOperand\": {\"@id\": \"https://w3id.org/idsa/code/POLICY_EVALUATION_TIME\"}, \"ids:rightOperand\": {\"@value\": \"2026-01-16T09:02:39.638656Z\", \"@type\": \"http://www.w3.org/2001/XMLSchema#dateTimeStamp\"}}], \"ids:action\": [{\"@id\": \"https://w3id.org/idsa/code/USE\"}], \"ids:title\": [{\"@value\": \"Zip File Usage Policy\", \"@type\": \"http://www.w3.org/2001/XMLSchema#string\"}]}], \"ids:provider\": {\"@id\": \"https://w3id.org/engrd/connector/\"}, \"ids:contractStart\": {\"@value\": \"2026-01-16T09:02:39.638656Z\", \"@type\": \"http://www.w3.org/2001/XMLSchema#dateTimeStamp\"}, \"ids:contractDate\": {\"@value\": \"2026-01-16T09:02:39.638656Z\", \"@type\": \"http://www.w3.org/2001/XMLSchema#dateTimeStamp\"}}], \"ids:representation\": [{\"@type\": \"ids:TextRepresentation\", \"@id\": \"zip-resource-20260116-090239\", \"ids:instance\": [{\"@type\": \"ids:Artifact\", \"@id\": \"http://w3id.org/engrd/connector/artifact/zip\", \"ids:creationDate\": {\"@value\": \"2026-01-16T09:02:39.638656Z\", \"@type\": \"http://www.w3.org/2001/XMLSchema#dateTimeStamp\"}}], \"ids:language\": {\"@id\": \"https://w3id.org/idsa/code/EN\"}, \"ids:created\": {\"@value\": \"2026-01-16T09:02:39.638656Z\", \"@type\": \"http://www.w3.org/2001/XMLSchema#dateTimeStamp\"}}], \"ids:title\": [{\"@value\": \"Zip File: test_data.zip\", \"@type\": \"http://www.w3.org/2001/XMLSchema#string\"}], \"ids:modified\": {\"@value\": \"2026-01-16T09:02:39.638656Z\", \"@type\": \"http://www.w3.org/2001/XMLSchema#dateTimeStamp\"}}"
+}
+======================================================================
+
+Test completed.
+allen@dummytoe:~/IDS-Connector/IDS_connector_TOE$ 
