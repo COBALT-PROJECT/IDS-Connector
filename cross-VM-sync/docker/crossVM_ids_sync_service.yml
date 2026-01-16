@@ -25,7 +25,7 @@ spec:
         imagePullPolicy: IfNotPresent
         env:
         - name: PROVIDER_URL
-          value: "https://10.10.2.20:30578"
+          value: "https://ai-target-of-evaluation.core.iit:30578"
         - name: CONSUMER_URL
           value: "https://tc-consumer:8444"
         - name: IDS_USERNAME
@@ -57,30 +57,30 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: health
-          initialDelaySeconds: 30
-          periodSeconds: 60
-          timeoutSeconds: 10
-          failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: health
-          initialDelaySeconds: 10
-          periodSeconds: 30
-          timeoutSeconds: 5
-          failureThreshold: 2
-        volumeMounts:
-        - name: logs
-          mountPath: /app/logs
-      volumes:
-      - name: logs
-        emptyDir: {}
-      restartPolicy: Always
-      terminationGracePeriodSeconds: 30
+        #Probes temporarily disabled to avoid container exiting as soon as it starts (NCSRD VM is has limited CPU capacity)
+        #livenessProbe:
+         # httpGet:
+          #  path: /health
+           # port: health
+          #initialDelaySeconds: 30
+          #periodSeconds: 60
+          #timeoutSeconds: 10
+          #failureThreshold: 3
+        #readinessProbe:
+         # httpGet:
+          #  path: /health
+           # port: health
+          #initialDelaySeconds: 10
+          #periodSeconds: 30
+          #timeoutSeconds: 5
+          #failureThreshold: 2
+        #volumeMounts:
+        #- name: logs
+         # mountPath: /app/logs
+      #volumes:
+      # emptyDir: {}
+      #restartPolicy: Always
+      #terminationGracePeriodSeconds: 30
 
 ---
 apiVersion: v1
@@ -125,7 +125,7 @@ metadata:
 data:
   sync-config.yaml: |
     provider:
-      url: "https://10.10.2.20:30578"
+      url: "https://ai-target-of-evaluation.core.iit:30578"
       timeout: 30
     consumer:
       url: "https://tc-consumer:8444"
