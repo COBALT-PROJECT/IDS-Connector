@@ -7,6 +7,8 @@ Resource Service - Service for posting resources to Provider
 import requests
 import json
 import logging
+import base64
+import hashlib
 from typing import Optional, Dict, List
 from datetime import datetime
 from requests.auth import HTTPBasicAuth
@@ -22,6 +24,9 @@ class ProviderResourceService:
     """
     Service class for posting resources to IDS Provider
     """
+    
+    # Supported zip data types
+    ZIP_DATA_TYPES = ['zip', 'application/zip', 'application/x-zip-compressed']
     
     def __init__(
         self,
@@ -46,13 +51,83 @@ class ProviderResourceService:
         
         logger.info(f"ProviderResourceService initialized for {provider_base_url}")
     
+    def _is_zip_data_type(self, data_type: str) -> bool:
+        """
+        Check if the data type indicates a zip file
+        
+        Args:
+            data_type: The data type string
+            
+        Returns:
+            bool: True if data type is a zip type
+        """
+        return data_type.lower() in self.ZIP_DATA_TYPES
+    
+    def _compute_zip_hash(self, base64_data: str) -> Optional[str]:
+        """
+        Compute SHA-256 hash of a base64-encoded zip file
+        
+        Args:
+            base64_data: Base64 encoded zip file data
+            
+        Returns:
+            str: Hex-encoded SHA-256 hash, or None if error
+        """
+        try:
+            # Decode base64 to get raw zip bytes
+            zip_bytes = base64.b64decode(base64_data)
+            
+            # Compute SHA-256 hash of the raw bytes
+            sha256_hash = hashlib.sha256(zip_bytes).hexdigest()
+            
+            logger.info(f"✓ Computed SHA-256 hash for zip file: {sha256_hash}")
+            return sha256_hash
+            
+        except base64.binascii.Error as e:
+            logger.error(f"Failed to decode base64 data: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to compute hash: {str(e)}")
+            return None
+    
+    def _prepare_zip_payload(self, data: str, data_type: str) -> Dict:
+        """
+        Prepare payload for zip file with hash metadata
+        
+        Args:
+            data: Base64 encoded zip file
+            data_type: The data type string
+            
+        Returns:
+            dict: Payload with zip data and hash metadata
+        """
+        # Compute hash of the zip file
+        zip_hash = self._compute_zip_hash(data)
+        
+        payload = {
+            "data_type": data_type,
+            "data": data,
+            "metadata": {
+                "hash_algorithm": "SHA-256",
+                "hash_value": zip_hash,
+                "content_type": "application/zip"
+            }
+        }
+        
+        if zip_hash:
+            logger.info(f"Prepared zip payload with hash: {zip_hash[:16]}...")
+        else:
+            logger.warning("Prepared zip payload without hash (hash computation failed)")
+        
+        return payload
+    
     def post_resource_to_provider(self, data_type: str, data: str, catalog_value: Optional[str] = None) -> Dict:
         """
         Post resource data to the IDS Provider
         
         Args:
-            data_type: Type of data (json, csv, etc.)
-            data: The actual data content (should be IDS TextResource JSON structure)
+            data_type: Type of data (json, csv, zip, etc.)
+            data: The actual data content (should be IDS TextResource JSON structure, or base64 for zip)
             catalog_value: Optional catalog ID to include in header
         
         Returns:
@@ -65,16 +140,21 @@ class ProviderResourceService:
             logger.info(f"Posting resource to provider at {url}...")
             logger.debug(f"Data type: {data_type}, Size: {len(data)} bytes")
             
-            # Parse the data to get the actual IDS resource structure
-            # The data should already be the IDS TextResource JSON string
-            try:
-                resource_data = json.loads(data) if isinstance(data, str) else data
-            except json.JSONDecodeError as e:
-                logger.error(f"Data is not valid JSON: {e}")
-                return {
-                    'success': False,
-                    'error': f'Invalid JSON data: {str(e)}'
-                }
+            # Check if this is a zip file
+            if self._is_zip_data_type(data_type):
+                logger.info("Detected zip data type - computing hash and preparing payload")
+                resource_data = self._prepare_zip_payload(data, data_type)
+            else:
+                # Parse the data to get the actual IDS resource structure
+                # The data should already be the IDS TextResource JSON string
+                try:
+                    resource_data = json.loads(data) if isinstance(data, str) else data
+                except json.JSONDecodeError as e:
+                    logger.error(f"Data is not valid JSON: {e}")
+                    return {
+                        'success': False,
+                        'error': f'Invalid JSON data: {str(e)}'
+                    }
             
             # Build headers
             headers = {
@@ -128,37 +208,6 @@ class ProviderResourceService:
             }
         except Exception as e:
             logger.error(f"Unexpected error in post_resource_to_provider: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
-            
-            logger.info(f"Response status code: {response.status_code}")
-            
-            if response.status_code in [200, 201]:
-                logger.info("✓ Resource posted successfully to provider")
-                return {
-                    'success': True,
-                    'status_code': response.status_code,
-                    'response': response.json() if response.content else None
-                }
-            else:
-                error_msg = f"Provider returned status {response.status_code}"
-                try:
-                    error_detail = response.json()
-                    error_msg += f": {error_detail}"
-                except:
-                    error_msg += f": {response.text}"
-                
-                logger.error(f"Failed to post resource: {error_msg}")
-                return {
-                    'success': False,
-                    'error': error_msg,
-                    'status_code': response.status_code
-                }
-                
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error posting resource to provider: {str(e)}")
             return {
                 'success': False,
                 'error': str(e)

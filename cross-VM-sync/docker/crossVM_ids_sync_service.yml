@@ -125,7 +125,7 @@ metadata:
 data:
   sync-config.yaml: |
     provider:
-      url: "https://ai-target-of-evaluation.core.iit:30578"
+      url: "https://ai-target-of-evaluation.cobalt.local:30578"
       timeout: 30
     consumer:
       url: "https://tc-consumer:8444"
