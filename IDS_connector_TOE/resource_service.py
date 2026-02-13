@@ -9,7 +9,8 @@ import json
 import logging
 import base64
 import hashlib
-from typing import Optional, Dict, List
+import re
+from typing import Optional, Dict, List, Tuple
 from datetime import datetime
 from requests.auth import HTTPBasicAuth
 import urllib3
@@ -27,6 +28,10 @@ class ProviderResourceService:
     
     # Supported zip data types
     ZIP_DATA_TYPES = ['zip', 'application/zip', 'application/x-zip-compressed']
+    
+    # Zip file indicators in payload
+    ZIP_MIME_TYPES = ['application/zip', 'application/x-zip-compressed']
+    ZIP_EXTENSIONS = ['.zip']
     
     def __init__(
         self,
@@ -63,6 +68,154 @@ class ProviderResourceService:
         """
         return data_type.lower() in self.ZIP_DATA_TYPES
     
+    def _detect_zip_in_payload(self, data: dict) -> Tuple[bool, Optional[str]]:
+        """
+        Detect if the JSON payload contains zip file data
+        
+        Checks for:
+        - mime_type field containing zip types
+        - filename field ending with .zip
+        - type field indicating zip
+        
+        Args:
+            data: Parsed JSON payload
+            
+        Returns:
+            Tuple[bool, Optional[str]]: (is_zip, base64_data)
+        """
+        try:
+            # Convert to string for searching
+            data_str = json.dumps(data).lower()
+            
+            # Check for zip mime types
+            has_zip_mime = any(mime in data_str for mime in ['application/zip', 'application/x-zip-compressed'])
+            
+            # Check for .zip filename
+            has_zip_extension = '.zip' in data_str
+            
+            # Check for type indicators
+            has_zip_type = '"type": "zip"' in data_str or '"type":"zip"' in data_str
+            
+            is_zip = has_zip_mime or has_zip_extension or has_zip_type
+            
+            if is_zip:
+                logger.info("Detected zip file content in JSON payload")
+                # Try to extract base64 data
+                base64_data = self._extract_base64_data(data)
+                return True, base64_data
+            
+            return False, None
+            
+        except Exception as e:
+            logger.error(f"Error detecting zip in payload: {str(e)}")
+            return False, None
+    
+    def _extract_base64_data(self, data: dict) -> Optional[str]:
+        """
+        Extract base64-encoded data from the payload
+        
+        Searches for the 'data' field in nested structures
+        
+        Args:
+            data: Parsed JSON payload
+            
+        Returns:
+            str: Base64 encoded data if found, None otherwise
+        """
+        try:
+            # Check ids:description field (common in IDS TextResource)
+            if 'ids:description' in data:
+                descriptions = data['ids:description']
+                if isinstance(descriptions, list) and descriptions:
+                    desc_value = descriptions[0].get('@value', '')
+                    if desc_value:
+                        # Parse the nested JSON in description
+                        try:
+                            nested_data = json.loads(desc_value)
+                            if 'data' in nested_data:
+                                logger.debug("Found base64 data in ids:description")
+                                return nested_data['data']
+                        except json.JSONDecodeError:
+                            pass
+            
+            # Direct data field
+            if 'data' in data:
+                if isinstance(data['data'], str) and len(data['data']) > 100:
+                    # Likely base64 data
+                    logger.debug("Found base64 data in direct 'data' field")
+                    return data['data']
+            
+            # Recursive search for 'data' field with base64 content
+            base64_data = self._recursive_find_base64(data)
+            if base64_data:
+                logger.debug("Found base64 data via recursive search")
+                return base64_data
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error extracting base64 data: {str(e)}")
+            return None
+    
+    def _recursive_find_base64(self, obj, depth: int = 0) -> Optional[str]:
+        """
+        Recursively search for base64 data in nested structures
+        
+        Args:
+            obj: Object to search
+            depth: Current recursion depth
+            
+        Returns:
+            str: Base64 data if found
+        """
+        if depth > 10:  # Prevent infinite recursion
+            return None
+            
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if key == 'data' and isinstance(value, str):
+                    # Check if it looks like base64
+                    if len(value) > 100 and self._is_valid_base64(value):
+                        return value
+                result = self._recursive_find_base64(value, depth + 1)
+                if result:
+                    return result
+        elif isinstance(obj, list):
+            for item in obj:
+                result = self._recursive_find_base64(item, depth + 1)
+                if result:
+                    return result
+        elif isinstance(obj, str):
+            # Try to parse as JSON
+            try:
+                parsed = json.loads(obj)
+                return self._recursive_find_base64(parsed, depth + 1)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        return None
+    
+    def _is_valid_base64(self, data: str) -> bool:
+        """
+        Check if a string is valid base64
+        
+        Args:
+            data: String to check
+            
+        Returns:
+            bool: True if valid base64
+        """
+        try:
+            # Remove whitespace
+            clean_data = data.replace('\n', '').replace('\r', '').replace(' ', '')
+            # Check base64 pattern
+            if re.match(r'^[A-Za-z0-9+/]*={0,2}$', clean_data):
+                base64.b64decode(clean_data)
+                return True
+            return False
+        except Exception:
+            return False
+    
     def _compute_zip_hash(self, base64_data: str) -> Optional[str]:
         """
         Compute SHA-256 hash of a base64-encoded zip file
@@ -90,36 +243,45 @@ class ProviderResourceService:
             logger.error(f"Failed to compute hash: {str(e)}")
             return None
     
-    def _prepare_zip_payload(self, data: str, data_type: str) -> Dict:
+    def _add_hash_to_payload(self, data: dict, zip_hash: str) -> dict:
         """
-        Prepare payload for zip file with hash metadata
+        Add hash metadata to the payload
         
         Args:
-            data: Base64 encoded zip file
-            data_type: The data type string
+            data: Original payload
+            zip_hash: Computed SHA-256 hash
             
         Returns:
-            dict: Payload with zip data and hash metadata
+            dict: Payload with hash metadata added
         """
-        # Compute hash of the zip file
-        zip_hash = self._compute_zip_hash(data)
-        
-        payload = {
-            "data_type": data_type,
-            "data": data,
-            "metadata": {
-                "hash_algorithm": "SHA-256",
-                "hash_value": zip_hash,
-                "content_type": "application/zip"
-            }
+        # Add hash metadata at the top level
+        data['metadata'] = data.get('metadata', {})
+        data['metadata']['zip_hash'] = {
+            'algorithm': 'SHA-256',
+            'value': zip_hash,
+            'computed_at': datetime.utcnow().isoformat() + 'Z'
         }
         
-        if zip_hash:
-            logger.info(f"Prepared zip payload with hash: {zip_hash[:16]}...")
-        else:
-            logger.warning("Prepared zip payload without hash (hash computation failed)")
+        # Also try to add hash to the IDS description if present
+        if 'ids:description' in data:
+            descriptions = data['ids:description']
+            if isinstance(descriptions, list) and descriptions:
+                desc_value = descriptions[0].get('@value', '')
+                if desc_value:
+                    try:
+                        nested_data = json.loads(desc_value)
+                        nested_data['metadata'] = nested_data.get('metadata', {})
+                        nested_data['metadata']['zip_hash'] = {
+                            'algorithm': 'SHA-256',
+                            'value': zip_hash
+                        }
+                        descriptions[0]['@value'] = json.dumps(nested_data)
+                        logger.info("Added hash to ids:description metadata")
+                    except json.JSONDecodeError:
+                        pass
         
-        return payload
+        logger.info(f"✓ Tagged payload with SHA-256 hash: {zip_hash[:16]}...")
+        return data
     
     def post_resource_to_provider(self, data_type: str, data: str, catalog_value: Optional[str] = None) -> Dict:
         """
@@ -131,8 +293,10 @@ class ProviderResourceService:
             catalog_value: Optional catalog ID to include in header
         
         Returns:
-            dict: Response with success status and details
+            dict: Response with success status, details, and zip_hash if applicable
         """
+        zip_hash = None  # Track the hash for return value
+        
         try:
             # The endpoint for posting resources to IDS Provider
             url = f"{self.provider_base_url}/api/offeredResource/"
@@ -140,13 +304,21 @@ class ProviderResourceService:
             logger.info(f"Posting resource to provider at {url}...")
             logger.debug(f"Data type: {data_type}, Size: {len(data)} bytes")
             
-            # Check if this is a zip file
+            # Check if this is explicitly a zip file by data_type
             if self._is_zip_data_type(data_type):
                 logger.info("Detected zip data type - computing hash and preparing payload")
-                resource_data = self._prepare_zip_payload(data, data_type)
+                zip_hash = self._compute_zip_hash(data)
+                resource_data = {
+                    "data_type": data_type,
+                    "data": data,
+                    "metadata": {
+                        "hash_algorithm": "SHA-256",
+                        "hash_value": zip_hash,
+                        "content_type": "application/zip"
+                    }
+                }
             else:
-                # Parse the data to get the actual IDS resource structure
-                # The data should already be the IDS TextResource JSON string
+                # Parse the data as JSON
                 try:
                     resource_data = json.loads(data) if isinstance(data, str) else data
                 except json.JSONDecodeError as e:
@@ -155,6 +327,18 @@ class ProviderResourceService:
                         'success': False,
                         'error': f'Invalid JSON data: {str(e)}'
                     }
+                
+                # Check if JSON payload contains zip file data
+                is_zip, base64_data = self._detect_zip_in_payload(resource_data)
+                
+                if is_zip and base64_data:
+                    logger.info("JSON payload contains zip file - computing hash")
+                    zip_hash = self._compute_zip_hash(base64_data)
+                    
+                    if zip_hash:
+                        resource_data = self._add_hash_to_payload(resource_data, zip_hash)
+                    else:
+                        logger.warning("Could not compute hash for zip file in payload")
             
             # Build headers
             headers = {
@@ -180,11 +364,15 @@ class ProviderResourceService:
             
             if response.status_code in [200, 201]:
                 logger.info("✓ Resource posted successfully to provider")
-                return {
+                result = {
                     'success': True,
                     'status_code': response.status_code,
                     'response': response.json() if response.content else None
                 }
+                # Include zip_hash in result if computed
+                if zip_hash:
+                    result['zip_hash'] = zip_hash
+                return result
             else:
                 error_msg = f"Provider returned status {response.status_code}"
                 try:

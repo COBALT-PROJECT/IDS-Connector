@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import logging
-from typing import Dict
+from typing import Dict, Optional
 import json
 
 logger = logging.getLogger(__name__)
@@ -123,7 +123,7 @@ class IDS_ProviderInterface:
             data_response: DataResponse object containing data_type and data
         
         Returns:
-            dict: Data response confirming successful post
+            dict: Data response confirming successful post, including hash if zip file
         
         Raises:
             HTTPException: For various error conditions (400, 404, 500)
@@ -156,7 +156,7 @@ class IDS_ProviderInterface:
             if not catalog_value:
                 logger.warning("Could not retrieve catalog value, attempting without catalog header")
             
-            # Step 1: Post resource to provider
+            # Step 1: Post resource to provider (this now computes hash for zip files)
             result = self.resource_service.post_resource_to_provider(
                 data_type=data_response.data_type,
                 data=data_response.data,
@@ -183,11 +183,24 @@ class IDS_ProviderInterface:
             resources = self.resource_service.get_all_text_resources(force_refresh=True)
             logger.info(f"✓ Synchronized with provider - {len(resources)} text resources available")
             
-            # Return the same data response to confirm receipt
-            return {
+            # Build response
+            response = {
                 "data_type": data_response.data_type,
-                "data": data_response.data
+                "data": data_response.data,
+                "status": "success",
+                "message": "Data posted successfully to provider"
             }
+            
+            # Add hash info if it was computed (for zip files)
+            if result.get('zip_hash'):
+                response['zip_hash'] = {
+                    "algorithm": "SHA-256",
+                    "value": result['zip_hash'],
+                    "message": "Hash computed from zip file (without extracting contents)"
+                }
+                logger.info(f"✓ Returning zip hash in response: {result['zip_hash'][:16]}...")
+            
+            return response
             
         except HTTPException:
             # Re-raise HTTP exceptions
