@@ -11,6 +11,8 @@ from typing import Dict, Optional
 import json
 import base64
 import io
+from pydantic import BaseModel
+from sdt_config_store import sdt_config
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +58,7 @@ class IDS_ConsumerInterface:
             return await self.health()
         
         # Main data request endpoint - updated to match YAML spec
-        @app.get("/api/IDSconnector/get_data_request", tags=["IDSconnector-consumer"])
+        @app.get("/api/IDSconnector/get_data_request", tags=["IDSconnector-SDT"])
         async def get_data_request(
             toe_id: str = Query(..., description="entity to be synchronized with"),
             data_type: str = Query(..., description="Data being received", example="json"),
@@ -83,13 +85,23 @@ class IDS_ConsumerInterface:
             return await self.get_cleared_ids()
         
         # File extraction endpoint
-        @app.get("/api/IDSconnector/extract_file", tags=["IDSconnector-consumer"])
+        @app.get("/api/IDSconnector/extract_file", tags=["IDSconnector-SDT"])
         async def extract_file(
             data_path: str = Query(..., description="Path to the data source containing file"),
             return_format: str = Query("json", description="Response format: 'json' or 'binary'")
         ):
             return await self.extract_file(data_path, return_format)
         
+        # SDT config registration endpoint
+        @app.post("/api/IDSconnector/SDT/configauth", tags=["IDSconnector-SDT-registration"])
+        async def register_sdt_config(payload: Dict):
+            return await self.register_sdt_config(payload)
+
+        # SDT config status endpoint
+        @app.get("/api/IDSconnector/SDT/configauth", tags=["IDSconnector-SDT-registration"])
+        async def get_sdt_config_status():
+            return await self.get_sdt_config_status()
+
         # Consumer info endpoint
         @app.get("/api/IDSconnector/SDT/info")
         async def consumer_info():
@@ -692,6 +704,52 @@ class IDS_ConsumerInterface:
     # Consumer Info Handler
     # ========================================================================
     
+    # ========================================================================
+    # SDT Config Registration Handlers
+    # ========================================================================
+
+    async def register_sdt_config(self, payload: Dict):
+        """
+        Receive SDT registration payload and store it in SDTConfigStore.
+
+        Expected JSON body:
+        {
+            "sdt_id": str,
+            "client_id": str,
+            "client_secret": str,
+            "access_token": str,
+            "components": {
+                "sdt": str,
+                "ids_connector": str,
+                "watchtower": str
+            }
+        }
+        """
+        required_fields = ["sdt_id", "client_id", "client_secret", "access_token", "components"]
+        missing = [f for f in required_fields if f not in payload]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "BAD_REQUEST",
+                    "message": f"Missing required fields: {', '.join(missing)}"
+                }
+            )
+
+        sdt_config.set(payload)
+        logger.info(f"SDT config registered — sdt_id={payload.get('sdt_id')}")
+
+        return {
+            "status": "ok",
+            "message": "SDT configuration stored successfully",
+            "sdt_id": payload.get("sdt_id"),
+            "components": list(payload.get("components", {}).keys())
+        }
+
+    async def get_sdt_config_status(self):
+        """Return the current SDT configuration status (secrets redacted)."""
+        return sdt_config.status()
+
     async def consumer_info(self):
         """
         Get consumer configuration information

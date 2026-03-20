@@ -39,7 +39,7 @@ spec:
     spec:
       containers:
       - name: ids-connector-sdt
-        image: allenabishek/ids-connector-sdt:v2.0.2 #if you are pulling from dockerhub, then use: allenabishek/ids-connector-sdt:v1.0.0, local image: ids-connector-sdt:v1.0.0
+        image: allenabishek/ids-connector-sdt:v2.0.3 #if you are pulling from dockerhub, then use: allenabishek/ids-connector-sdt:v1.0.0, local image: ids-connector-sdt:v1.0.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8004

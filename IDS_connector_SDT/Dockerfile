@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY catalog_service.py .
 COPY resource_service.py .
 COPY file_extractor_service.py .
+COPY sdt_config_store.py .
 COPY ids_consumer_interface.py .
 COPY manager.py .
 COPY main.py .

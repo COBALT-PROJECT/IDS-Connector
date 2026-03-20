@@ -9,7 +9,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 IMAGE_NAME="${IMAGE_NAME:-ids-connector-sdt}"
-IMAGE_TAG="${IMAGE_TAG:-v2.0.2}"
+IMAGE_TAG="${IMAGE_TAG:-v2.0.3}"
 
 # Parse command line arguments
 while [[ "$#" -gt 0 ]]; do
