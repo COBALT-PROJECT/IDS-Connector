@@ -20,7 +20,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 IDS_TOE_URL = "http://localhost:8005/api/IDSconnector/post_data"  # run this from aitoe vm to access ids-toe runing as a pod bound to localhost port 8005
 # For pod access: "http://ids-connector-toe-service:8005/api/IDSconnector/post_data"
 # for external access: "http://localhost:8005/api/IDSconnector/post_data" (when you are running ids-toe as a localhost application not in a pod)
-TOE_ID = "1234"  # Default TOE ID - change this as needed
+TOE_ID = "00000000-0000-0000-0000-000000000002"  # Default TOE ID: 00000000-0000-0000-0000-000000000002 - change this as needed
 
 def analyze_python_file(content):
     """Analyze Python file content and extract metadata"""
