@@ -25,7 +25,7 @@ spec:
         imagePullPolicy: IfNotPresent
         env:
         - name: PROVIDER_URL
-          value: "https://tc-provider:8090"
+          value: "https://ai-target-of-evaluation.cobalt.local:30578" #contacts nodeport in aitoe vm which has ids-toe binded to it
         - name: CONSUMER_URL
           value: "https://tc-consumer:8444"
         - name: IDS_USERNAME
