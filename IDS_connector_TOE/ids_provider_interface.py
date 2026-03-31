@@ -25,7 +25,8 @@ class IDS_ProviderInterface:
     IDS Provider Interface class containing all API endpoint handlers
     """
     
-    def __init__(self, catalog_service, resource_service, config: Dict):
+    def __init__(self, catalog_service, resource_service, config: Dict,
+                 auth_manager=None):
         """
         Initialize the IDS Provider Interface
         
@@ -33,10 +34,12 @@ class IDS_ProviderInterface:
             catalog_service: Instance of ProviderCatalogService
             resource_service: Instance of ProviderResourceService
             config: Configuration dictionary
+            auth_manager: Instance of TOEAuthenticationManager (optional)
         """
         self.catalog_service = catalog_service
         self.resource_service = resource_service
         self.config = config
+        self.auth_manager = auth_manager
         
         logger.info("IDS_ProviderInterface initialized")
     
@@ -72,7 +75,19 @@ class IDS_ProviderInterface:
         @app.get("/api/IDSconnector/TOE/info")
         async def provider_info():
             return await self.provider_info()
-    
+
+        # ===== Authentication endpoints =====
+
+        @app.get("/api/IDSconnector/TOE/auth/status", tags=["Authentication"])
+        async def auth_status():
+            """Retrieve the current authentication / credential status."""
+            return await self.auth_status()
+
+        @app.get("/api/IDSconnector/TOE/auth/token", tags=["Authentication"])
+        async def auth_token():
+            """Retrieve the stored access token (if available)."""
+            return await self.auth_token()
+
     # ========================================================================
     # Startup Handler
     # ========================================================================
@@ -103,13 +118,23 @@ class IDS_ProviderInterface:
         Health check endpoint
         
         Returns:
-            dict: Health status information
+            dict: Health status information including authentication state
         """
-        return {
+        response = {
             'status': 'healthy',
             'service': 'IDS TOE Provider API Server',
-            'provider': self.config['provider_base_url']
+            'provider': self.config['provider_base_url'],
         }
+
+        # Include authentication status when auth_manager is available
+        if self.auth_manager:
+            response['authentication'] = {
+                'status': self.auth_manager.get_auth_status(),
+                'toe_id': self.auth_manager.get_toe_id(),
+                'has_token': self.auth_manager.get_access_token() is not None,
+            }
+
+        return response
     
     # ========================================================================
     # Post Data Handler (Main Endpoint)
@@ -246,3 +271,70 @@ class IDS_ProviderInterface:
             'timeout': self.config['request_timeout'],
             'catalog_cache_ttl': self.config['cache_ttl']
         }
+
+    # ========================================================================
+    # Authentication Endpoint Handlers
+    # ========================================================================
+
+    async def auth_status(self):
+        """
+        Get the current authentication / credential status.
+
+        Returns:
+            dict: Authentication status information.
+        """
+        if not self.auth_manager:
+            raise HTTPException(
+                status_code=503,
+                detail="Authentication manager not configured"
+            )
+
+        creds = self.auth_manager.get_credentials()
+        return {
+            "toe_id": creds.get("toe_id"),
+            "status": creds.get("status"),
+            "has_token": creds.get("access_token") is not None,
+            "scope": creds.get("token_scope"),
+        }
+
+    async def auth_token(self):
+        """
+        Retrieve the stored access token.
+
+        Returns the token only if the authentication flow has completed
+        successfully.  Returns 503 if the flow is still in progress and
+        404 if it failed.
+        """
+        if not self.auth_manager:
+            raise HTTPException(
+                status_code=503,
+                detail="Authentication manager not configured"
+            )
+
+        status = self.auth_manager.get_auth_status()
+        token = self.auth_manager.get_access_token()
+
+        if status == "issued" and token:
+            return {
+                "toe_id": self.auth_manager.get_toe_id(),
+                "access_token": token,
+                "status": "issued",
+            }
+        elif status in ("pending", "registered"):
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "AUTH_IN_PROGRESS",
+                    "message": "Authentication flow is still in progress",
+                    "status": status,
+                }
+            )
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "AUTH_FAILED",
+                    "message": "Authentication flow failed — no token available",
+                    "status": status,
+                }
+            )
