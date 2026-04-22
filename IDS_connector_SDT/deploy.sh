@@ -16,7 +16,7 @@ YAML_FILES=(
     "ecc-consumer-configmap-v.2.yaml"
     "consumer-compiled-v-0.3.yaml"
     "ids_connector_sdt_k8s_deployment.yml"
-    #"pods_sync_k3s.yml"
+    "pods_sync_k3s.yml"
 )
 
 echo -e "${GREEN}Starting IDS Connector SDT deployment...${NC}"

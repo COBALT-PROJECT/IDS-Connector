@@ -4,13 +4,14 @@
 """
 IDS Consumer Interface - API endpoint handlers for Consumer Resource Server
 """
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, Header
 from fastapi.responses import JSONResponse, StreamingResponse, Response
 import logging
 from typing import Dict, Optional
 import json
 import base64
 import io
+import hmac
 from pydantic import BaseModel
 from sdt_config_store import sdt_config
 
@@ -62,9 +63,21 @@ class IDS_ConsumerInterface:
         async def get_data_request(
             toe_id: str = Query(..., description="entity to be synchronized with"),
             data_type: str = Query(..., description="Data being received", example="json"),
-            data_path: str = Query(..., description="Path to the data source")
+            data_path: str = Query(..., description="Path to the data source"),
+            access_token: Optional[str] = Query(
+                None,
+                description="Caller's access token; must match the token registered with the IDS-SDT"
+            ),
+            authorization: Optional[str] = Header(
+                None,
+                description="Optional 'Bearer <token>' header alternative to the access_token query parameter"
+            ),
         ):
-            return await self.get_data_request(toe_id, data_type, data_path)
+            return await self.get_data_request(
+                toe_id, data_type, data_path,
+                access_token=access_token,
+                authorization=authorization,
+            )
         
         # Resource by name endpoint (keeping for backward compatibility)
         #Get resource by name
@@ -258,7 +271,9 @@ class IDS_ConsumerInterface:
         self, 
         toe_id: str, 
         data_type: str, 
-        data_path: str
+        data_path: str,
+        access_token: Optional[str] = None,
+        authorization: Optional[str] = None,
     ):
         """
         Get data request endpoint compatible with YAML specification
@@ -267,14 +282,75 @@ class IDS_ConsumerInterface:
             toe_id: Entity to be synchronized with
             data_type: Type of data being received (e.g., "json")
             data_path: Path to the data source
+            access_token: Caller-supplied access token (query parameter)
+            authorization: Optional 'Bearer <token>' Authorization header
         
         Returns:
             dict: Data response object
         
         Raises:
-            HTTPException: For various error conditions (400, 404, 500)
+            HTTPException: For various error conditions (400, 401, 404, 500)
         """
         try:
+            # ------------------------------------------------------------
+            # Access token validation
+            # ------------------------------------------------------------
+            # Resolve caller-provided token: prefer explicit query parameter,
+            # fall back to 'Authorization: Bearer <token>' header.
+            caller_token = access_token
+            if not caller_token and authorization:
+                auth = authorization.strip()
+                if auth.lower().startswith("bearer "):
+                    caller_token = auth[7:].strip()
+                else:
+                    caller_token = auth
+
+            if not caller_token:
+                raise HTTPException(
+                    status_code=401,
+                    detail={
+                        "code": "UNAUTHORIZED",
+                        "message": "access_token is required."
+                    }
+                )
+
+            # Ensure the IDS-SDT has been registered with an access token
+            if not sdt_config.is_configured:
+                logger.warning("Token validation requested but SDT config is not initialized")
+                raise HTTPException(
+                    status_code=401,
+                    detail={
+                        "code": "UNAUTHORIZED",
+                        "message": "IDS-SDT is not configured with an access token."
+                    }
+                )
+
+            expected_token = sdt_config.get("access_token")
+            if not expected_token:
+                logger.warning("No access_token registered in SDT config store")
+                raise HTTPException(
+                    status_code=401,
+                    detail={
+                        "code": "UNAUTHORIZED",
+                        "message": "IDS-SDT has no access token registered."
+                    }
+                )
+
+            # Constant-time comparison to mitigate timing attacks
+            if not hmac.compare_digest(str(caller_token), str(expected_token)):
+                logger.warning(
+                    f"Access token mismatch for data request (toe_id={toe_id}, data_path={data_path})"
+                )
+                raise HTTPException(
+                    status_code=401,
+                    detail={
+                        "code": "UNAUTHORIZED",
+                        "message": "Invalid access token."
+                    }
+                )
+
+            logger.info("Access token validated successfully")
+
             # Validate required parameters
             if not toe_id:
                 raise HTTPException(
