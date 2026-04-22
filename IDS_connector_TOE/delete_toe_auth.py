@@ -15,7 +15,7 @@ Usage:
 
 Examples:
     # Delete twin registration only
-    python delete_toe_auth.py a1b2c3d4
+    python delete_toe_auth.py a1b2c3d4 (USE THIS) #note: the access token expires naturally.
 
     # Delete twin registration and revoke the access token
     python delete_toe_auth.py a1b2c3d4 --token eyJhbGciOi... (WORKS, USE THIS)
