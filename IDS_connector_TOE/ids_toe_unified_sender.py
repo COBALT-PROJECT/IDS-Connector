@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Unified script to POST various file types to IDS TOE Provider
-Supports: .zip, .ipynb, .py files
+Supports: .zip, .ipynb, .py, .json files
 Usage: python3 ids_toe_unified_sender.py <file_path>
 """
 import requests
@@ -20,7 +20,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 IDS_TOE_URL = "http://localhost:8005/api/IDSconnector/post_data"  # run this from aitoe vm to access ids-toe runing as a pod bound to localhost port 8005
 # For pod access: "http://ids-connector-toe-service:8005/api/IDSconnector/post_data"
 # for external access: "http://localhost:8005/api/IDSconnector/post_data" (when you are running ids-toe as a localhost application not in a pod)
-TOE_ID = "00000000-0000-0000-0000-000000000002"  # Default TOE ID: 00000000-0000-0000-0000-000000000002 - change this as needed
+TOE_ID = "00000000-0000-0000-0000-000000000000"  # Default TOE ID: 00000000-0000-0000-0000-000000000002 - change this as needed
 
 def analyze_python_file(content):
     """Analyze Python file content and extract metadata"""
@@ -146,6 +146,32 @@ def process_file(file_path):
         }
         
         resource_type = "python"
+        
+    elif file_ext == '.json':
+        # Process JSON file
+        with open(file_path, 'r', encoding='utf-8') as f:
+            json_content = f.read()
+        
+        # Validate it's parseable JSON
+        json_data = json.loads(json_content)
+        json_base64 = base64.b64encode(json_content.encode('utf-8')).decode('utf-8')
+        
+        metadata = {
+            **base_metadata,
+            "encoding": "base64",
+            "mime_type": "application/json",
+            "json_keys_count": len(json_data) if isinstance(json_data, dict) else "N/A (array)",
+            "json_size_chars": len(json_content)
+        }
+        
+        payload_content = {
+            "toe_id": TOE_ID,
+            "type": "json_file",
+            "metadata": metadata,
+            "content": json_base64
+        }
+        
+        resource_type = "json"
         
     else:
         print(f"Error: Unsupported file type: {file_ext}")
@@ -294,10 +320,12 @@ def main():
         print("  - .zip  : ZIP archives (sent as base64)")
         print("  - .ipynb: Jupyter notebooks (sent as JSON)")
         print("  - .py   : Python scripts (sent as text)")
+        print("  - .json : JSON data files (sent as base64)")
         print("\nExample:")
         print("  python ids_toe_unified_sender.py myfile.zip")
         print("  python ids_toe_unified_sender.py notebook.ipynb")
         print("  python ids_toe_unified_sender.py script.py")
+        print("  python ids_toe_unified_sender.py data.json")
         sys.exit(1)
     
     file_path = sys.argv[1]
