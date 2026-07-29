@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 import logging
 from typing import Dict, Optional
 import json
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,11 @@ class DataResponse(BaseModel):
     """Data response model matching OpenAPI spec"""
     data_type: str = Field(..., description="Type of data returned")
     data: str = Field(..., description="The actual data payload")
+
+
+class ToeIdRequest(BaseModel):
+    """Request model for setting the TOE ID used by post_data"""
+    toe_id: str = Field(..., description="TOE UUID, e.g. 3e671687-395b-41f5-a30f-a58921a69b79")
 
 
 class IDS_ProviderInterface:
@@ -40,6 +46,7 @@ class IDS_ProviderInterface:
         self.resource_service = resource_service
         self.config = config
         self.auth_manager = auth_manager
+        self.toe_id: Optional[str] = None
         
         logger.info("IDS_ProviderInterface initialized")
     
@@ -75,6 +82,15 @@ class IDS_ProviderInterface:
         @app.get("/api/IDSconnector/TOE/info")
         async def provider_info():
             return await self.provider_info()
+
+        # TOE ID state endpoints
+        @app.post("/api/IDSconnector/TOE/id", tags=["IDSconnector-provider"])
+        async def set_toe_id(request: ToeIdRequest):
+            return await self.set_toe_id(request)
+
+        @app.get("/api/IDSconnector/TOE/id", tags=["IDSconnector-provider"])
+        async def get_toe_id():
+            return await self.get_toe_id()
 
         # ===== Authentication endpoints =====
 
@@ -124,6 +140,7 @@ class IDS_ProviderInterface:
             'status': 'healthy',
             'service': 'IDS TOE Provider API Server',
             'provider': self.config['provider_base_url'],
+            'toe_id': self.toe_id,
         }
 
         # Include authentication status when auth_manager is available
@@ -175,6 +192,17 @@ class IDS_ProviderInterface:
                 )
             
             logger.info(f"Processing data post request - data_type: {data_response.data_type}, data_size: {len(data_response.data)} bytes")
+
+            if not self.toe_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "code": "TOE_ID_NOT_SET",
+                        "message": "Set TOE ID first using POST /api/IDSconnector/TOE/id."
+                    }
+                )
+
+            data_to_post = self._inject_toe_id(data_response.data)
             
             # Get catalog value for the header
             catalog_value = self.catalog_service.get_catalog_value()
@@ -184,7 +212,7 @@ class IDS_ProviderInterface:
             # Step 1: Post resource to provider (this now computes hash for zip files)
             result = self.resource_service.post_resource_to_provider(
                 data_type=data_response.data_type,
-                data=data_response.data,
+                data=data_to_post,
                 catalog_value=catalog_value
             )
             
@@ -211,7 +239,8 @@ class IDS_ProviderInterface:
             # Build response
             response = {
                 "data_type": data_response.data_type,
-                "data": data_response.data,
+                "toe_id": self.toe_id,
+                "data": data_to_post,
                 "status": "success",
                 "message": "Data posted successfully to provider"
             }
@@ -269,8 +298,96 @@ class IDS_ProviderInterface:
             'provider_base_url': self.config['provider_base_url'],
             'username': self.config['username'],
             'timeout': self.config['request_timeout'],
-            'catalog_cache_ttl': self.config['cache_ttl']
+            'catalog_cache_ttl': self.config['cache_ttl'],
+            'toe_id': self.toe_id,
         }
+
+    # ========================================================================
+    # TOE ID Endpoint Handlers
+    # ========================================================================
+
+    async def set_toe_id(self, request: ToeIdRequest):
+        """
+        Store the TOE ID that will be injected into future post_data payloads.
+        """
+        toe_id = request.toe_id.strip()
+
+        try:
+            uuid.UUID(toe_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "BAD_REQUEST",
+                    "message": "toe_id must be a valid UUID."
+                }
+            )
+
+        self.toe_id = toe_id
+        logger.info(f"TOE ID set for future post_data requests: {toe_id}")
+
+        return {
+            "status": "success",
+            "toe_id": self.toe_id,
+            "message": "TOE ID stored successfully"
+        }
+
+    async def get_toe_id(self):
+        """
+        Return the currently stored TOE ID, if one has been set.
+        """
+        if not self.toe_id:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "TOE_ID_NOT_SET",
+                    "message": "No TOE ID has been set."
+                }
+            )
+
+        return {
+            "toe_id": self.toe_id,
+            "status": "set"
+        }
+
+    def _inject_toe_id(self, data: str) -> str:
+        """
+        Inject the stored TOE ID into an IDS TextResource payload.
+
+        The unified sender stores the file payload as JSON text in the first
+        ids:description entry, so update that nested payload. Also set a
+        top-level toe_id for callers that send simpler JSON documents.
+        """
+        try:
+            resource_data = json.loads(data)
+        except json.JSONDecodeError:
+            logger.warning("Could not inject TOE ID because data is not JSON")
+            return data
+
+        resource_data["toe_id"] = self.toe_id
+
+        descriptions = resource_data.get("ids:description")
+        if isinstance(descriptions, list):
+            for description in descriptions:
+                if not isinstance(description, dict):
+                    continue
+
+                desc_value = description.get("@value")
+                if not isinstance(desc_value, str):
+                    continue
+
+                try:
+                    nested_payload = json.loads(desc_value)
+                except json.JSONDecodeError:
+                    continue
+
+                if isinstance(nested_payload, dict):
+                    nested_payload["toe_id"] = self.toe_id
+                    description["@value"] = json.dumps(nested_payload)
+                    logger.debug("Injected TOE ID into ids:description payload")
+                    break
+
+        return json.dumps(resource_data)
 
     # ========================================================================
     # Authentication Endpoint Handlers
