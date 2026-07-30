@@ -10,7 +10,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 IMAGE_NAME="ids-connector-toe"
-IMAGE_TAG="v2.0.4" #performs hash check on zip file and tags the hash value to the zip file before sending to tc-provider and gets access token from AM.
+IMAGE_TAG="v2.0.5" #performs hash check on zip file and tags the hash value to the zip file before sending to tc-provider and gets access token from AM.
 
 echo -e "${GREEN}Starting IDS TOE Provider API build process...${NC}"
 
