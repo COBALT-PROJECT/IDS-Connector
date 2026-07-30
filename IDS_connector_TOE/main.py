@@ -35,6 +35,17 @@ CONFIG = {
     'wallet_controller_url': os.environ.get('WALLET_CONTROLLER_URL'),
     'wallet_controller_key': os.environ.get('WALLET_CONTROLLER_KEY'),
     'digital_twin_api_key': os.environ.get('DIGITAL_TWIN_API_KEY'),
+
+    # Direct JWT client-credentials configuration
+    'auth_base_url': os.environ.get('AUTH_BASE_URL', 'http://iam.cobalt.local:3100'),
+    'auth_client_id': os.environ.get('AUTH_CLIENT_ID', 'idstoe'),
+    'auth_client_secret': os.environ.get(
+        'AUTH_CLIENT_SECRET',
+        '3061426b1ae5a36de114580e30f860475e3b9dcc91d15baf125a30cd8c9b7330'
+    ),
+    'auth_scope': os.environ.get('AUTH_SCOPE', 'digital_twins profile'),
+    'auth_db_path': os.environ.get('AUTH_DB_PATH', 'authentication_tokens.db'),
+    'auth_introspection_path': os.environ.get('AUTH_INTROSPECTION_PATH', '/oauth/introspect'),
 }
 
 # Instantiate the Manager class

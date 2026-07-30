@@ -4,11 +4,11 @@
 """
 IDS Provider Interface - API endpoint handlers for TOE Provider Server
 """
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import json
 import uuid
 
@@ -26,13 +26,20 @@ class ToeIdRequest(BaseModel):
     toe_id: str = Field(..., description="TOE UUID, e.g. 3e671687-395b-41f5-a30f-a58921a69b79")
 
 
+class AuthenticatedRequest(BaseModel):
+    """Request model for calls made with the stored JWT"""
+    method: str = Field("GET", description="HTTP method to use")
+    path: str = Field(..., description="Authentication Manager API path, e.g. /api/digital-twins")
+    payload: Optional[Dict[str, Any]] = Field(None, description="Optional JSON payload")
+
+
 class IDS_ProviderInterface:
     """
     IDS Provider Interface class containing all API endpoint handlers
     """
     
     def __init__(self, catalog_service, resource_service, config: Dict,
-                 auth_manager=None):
+                 auth_manager=None, authentication_manager=None):
         """
         Initialize the IDS Provider Interface
         
@@ -41,11 +48,13 @@ class IDS_ProviderInterface:
             resource_service: Instance of ProviderResourceService
             config: Configuration dictionary
             auth_manager: Instance of TOEAuthenticationManager (optional)
+            authentication_manager: Instance of AuthenticationManager (optional)
         """
         self.catalog_service = catalog_service
         self.resource_service = resource_service
         self.config = config
         self.auth_manager = auth_manager
+        self.authentication_manager = authentication_manager
         self.toe_id: Optional[str] = None
         
         logger.info("IDS_ProviderInterface initialized")
@@ -85,8 +94,11 @@ class IDS_ProviderInterface:
 
         # TOE ID state endpoints
         @app.post("/api/IDSconnector/TOE/id", tags=["IDSconnector-provider"])
-        async def set_toe_id(request: ToeIdRequest):
-            return await self.set_toe_id(request)
+        async def set_toe_id(
+            request: ToeIdRequest,
+            authorization: Optional[str] = Header(None),
+        ):
+            return await self.set_toe_id(request, authorization)
 
         @app.get("/api/IDSconnector/TOE/id", tags=["IDSconnector-provider"])
         async def get_toe_id():
@@ -103,6 +115,21 @@ class IDS_ProviderInterface:
         async def auth_token():
             """Retrieve the stored access token (if available)."""
             return await self.auth_token()
+
+        @app.post("/api/IDSconnector/TOE/jwt/refresh", tags=["Authentication"])
+        async def refresh_jwt():
+            """Fetch and store a new JWT from the Authentication Manager."""
+            return await self.refresh_jwt()
+
+        @app.get("/api/IDSconnector/TOE/jwt/status", tags=["Authentication"])
+        async def jwt_status():
+            """Return metadata for the stored JWT without exposing the token."""
+            return await self.jwt_status()
+
+        @app.post("/api/IDSconnector/TOE/jwt/request", tags=["Authentication"])
+        async def authenticated_jwt_request(request: AuthenticatedRequest):
+            """Call the Authentication Manager using the stored JWT."""
+            return await self.authenticated_jwt_request(request)
 
     # ========================================================================
     # Startup Handler
@@ -306,10 +333,13 @@ class IDS_ProviderInterface:
     # TOE ID Endpoint Handlers
     # ========================================================================
 
-    async def set_toe_id(self, request: ToeIdRequest):
+    async def set_toe_id(self, request: ToeIdRequest, authorization: Optional[str]):
         """
         Store the TOE ID that will be injected into future post_data payloads.
+        Requires a valid caller JWT from the Authentication Manager.
         """
+        self._require_valid_caller_jwt(authorization)
+
         toe_id = request.toe_id.strip()
 
         try:
@@ -331,6 +361,56 @@ class IDS_ProviderInterface:
             "toe_id": self.toe_id,
             "message": "TOE ID stored successfully"
         }
+
+    def _require_valid_caller_jwt(self, authorization: Optional[str]) -> Dict:
+        """Validate the caller's bearer JWT before accepting sensitive writes."""
+        if not authorization or not authorization.lower().startswith("bearer "):
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "code": "MISSING_BEARER_TOKEN",
+                    "message": "Send Authorization: Bearer <jwt> when posting the TOE ID."
+                }
+            )
+
+        if not self.authentication_manager:
+            raise HTTPException(
+                status_code=503,
+                detail="AuthenticationManager not configured"
+            )
+
+        token = authorization.split(" ", 1)[1].strip()
+        if not token:
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "code": "MISSING_BEARER_TOKEN",
+                    "message": "Bearer token is empty."
+                }
+            )
+
+        try:
+            validation = self.authentication_manager.validate_jwt(token)
+        except Exception as e:
+            logger.error(f"Caller JWT validation failed: {e}")
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "code": "INVALID_BEARER_TOKEN",
+                    "message": "Could not validate caller JWT with Authentication Manager."
+                }
+            )
+
+        if validation.get("active") is not True:
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "code": "INACTIVE_BEARER_TOKEN",
+                    "message": "Caller JWT is not active."
+                }
+            )
+
+        return validation
 
     async def get_toe_id(self):
         """
@@ -392,6 +472,88 @@ class IDS_ProviderInterface:
     # ========================================================================
     # Authentication Endpoint Handlers
     # ========================================================================
+
+
+    async def refresh_jwt(self):
+        """
+        Fetch a JWT from the Authentication Manager and store it in SQLite.
+        """
+        if not self.authentication_manager:
+            raise HTTPException(
+                status_code=503,
+                detail="AuthenticationManager not configured"
+            )
+
+        try:
+            metadata = self.authentication_manager.refresh_jwt()
+            return {
+                "status": "success",
+                "message": "JWT refreshed and stored successfully",
+                "token": metadata,
+            }
+        except Exception as e:
+            logger.error(f"Failed to refresh JWT: {e}")
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "code": "JWT_REFRESH_FAILED",
+                    "message": str(e),
+                }
+            )
+
+    async def jwt_status(self):
+        """
+        Return metadata for the stored JWT without returning the raw token.
+        """
+        if not self.authentication_manager:
+            raise HTTPException(
+                status_code=503,
+                detail="AuthenticationManager not configured"
+            )
+
+        return self.authentication_manager.get_token_metadata()
+
+    async def authenticated_jwt_request(self, request: AuthenticatedRequest):
+        """
+        Call the Authentication Manager using the JWT stored in SQLite.
+        """
+        if not self.authentication_manager:
+            raise HTTPException(
+                status_code=503,
+                detail="AuthenticationManager not configured"
+            )
+
+        try:
+            return self.authentication_manager.authenticated_request(
+                method=request.method,
+                path=request.path,
+                payload=request.payload,
+            )
+        except RuntimeError as e:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "JWT_NOT_AVAILABLE",
+                    "message": str(e),
+                }
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "BAD_REQUEST",
+                    "message": str(e),
+                }
+            )
+        except Exception as e:
+            logger.error(f"Authenticated JWT request failed: {e}")
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "code": "JWT_REQUEST_FAILED",
+                    "message": str(e),
+                }
+            )
 
     async def auth_status(self):
         """

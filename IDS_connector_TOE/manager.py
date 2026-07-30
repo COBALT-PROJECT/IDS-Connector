@@ -11,6 +11,8 @@ from catalog_service import ProviderCatalogService
 from resource_service import ProviderResourceService
 from ids_provider_interface import IDS_ProviderInterface
 from toe_authentication_manager import TOEAuthenticationManager
+from auth_token_store import AuthTokenStore
+from authentication_manager import AuthenticationManager
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,28 @@ class TOEProviderManager:
             request_timeout=config['request_timeout']
         )
 
+        self.auth_token_store = AuthTokenStore(
+            db_path=config.get('auth_db_path', 'authentication_tokens.db')
+        )
+        self.authentication_manager = AuthenticationManager(
+            auth_base_url=config.get('auth_base_url', 'http://iam.cobalt.local:3100'),
+            client_id=config.get('auth_client_id', 'idstoe'),
+            client_secret=config.get('auth_client_secret'),
+            scope=config.get('auth_scope', 'digital_twins profile'),
+            request_timeout=config['request_timeout'],
+            token_store=self.auth_token_store,
+            introspection_path=config.get('auth_introspection_path', '/oauth/introspect'),
+        )
+        logger.info("AuthenticationManager has been instantiated")
+
+        self._jwt_thread = threading.Thread(
+            target=self._run_jwt_refresh,
+            daemon=True,
+            name="ids-toe-jwt",
+        )
+        self._jwt_thread.start()
+        logger.info("AuthenticationManager JWT refresh started in background thread")
+
         # Initialize TOE Authentication Manager
         self.auth_manager = TOEAuthenticationManager(
             am_base_url=config.get('am_base_url'),
@@ -84,12 +108,26 @@ class TOEProviderManager:
             resource_service=self.resource_service,
             config=config,
             auth_manager=self.auth_manager,
+            authentication_manager=self.authentication_manager,
         )
         
         # Register routes through the interface
         self.ids_interface.register_routes(self.app)
         
         logger.info("TOEProviderManager initialized successfully")
+
+    def _run_jwt_refresh(self):
+        """
+        Fetch IDS-TOE's own JWT from IAM and store it in SQLite.
+        """
+        try:
+            metadata = self.authentication_manager.refresh_jwt()
+            logger.info(
+                "IDS-TOE JWT acquired and stored - "
+                f"expires_at={metadata.get('expires_at')}"
+            )
+        except Exception as e:
+            logger.error(f"IDS-TOE JWT refresh failed: {e}")
 
     def _run_auth_flow(self):
         """

@@ -39,7 +39,7 @@ spec:
     spec:
       containers:
       - name: ids-connector-toe
-        image: docker.io/library/ids-connector-toe:v2.0.3 #latest functionality of ids-toe (hash creation of zip file) #if you are pulling from dockerhub, then use: allenabishek/ids-connector-toe:v1.0.0, local image: ids-connector-toe:v1.0.0
+        image: docker.io/library/ids-connector-toe:v2.0.4 #latest functionality of ids-toe (hash creation of zip file) #if you are pulling from dockerhub, then use: allenabishek/ids-connector-toe:v1.0.0, local image: ids-connector-toe:v1.0.0
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8005
