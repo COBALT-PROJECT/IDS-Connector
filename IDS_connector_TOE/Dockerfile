@@ -21,7 +21,6 @@ COPY manager.py .
 COPY ids_provider_interface.py .
 COPY catalog_service.py .
 COPY resource_service.py .
-COPY toe_authentication_manager.py .
 COPY auth_token_store.py .
 COPY authentication_manager.py .
 
