@@ -17,9 +17,31 @@ from datetime import datetime
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Configuration
-IDS_TOE_URL = "http://localhost:8005/api/IDSconnector/post_data"  # run this from aitoe vm to access ids-toe runing as a pod bound to localhost port 8005
-# For pod access: "http://ids-connector-toe-service:8005/api/IDSconnector/post_data"
-# for external access: "http://localhost:8005/api/IDSconnector/post_data" (when you are running ids-toe as a localhost application not in a pod)
+IDS_TOE_BASE_URL = os.environ.get("IDS_TOE_BASE_URL", "http://localhost:30005")
+IDS_TOE_URL = f"{IDS_TOE_BASE_URL}/api/IDSconnector/post_data"
+IDS_TOE_ID_URL = f"{IDS_TOE_BASE_URL}/api/IDSconnector/TOE/id"
+
+def get_toe_id():
+    """Fetch the active TOE ID from IDS-TOE before sending data."""
+    try:
+        response = requests.get(IDS_TOE_ID_URL, headers={"Accept": "application/json"}, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error: Could not fetch TOE ID from IDS-TOE: {e}")
+        print(f"Make sure IDS-TOE is reachable at {IDS_TOE_ID_URL}")
+        sys.exit(1)
+    except ValueError:
+        print("Error: IDS-TOE returned a non-JSON response for TOE ID")
+        sys.exit(1)
+
+    toe_id = data.get("toe_id")
+    if not toe_id:
+        print("Error: IDS-TOE has no TOE ID set. CCM Manager must post the TOE ID first.")
+        sys.exit(1)
+
+    return toe_id
+
 def analyze_python_file(content):
     """Analyze Python file content and extract metadata"""
     metadata = {}
@@ -63,7 +85,7 @@ def analyze_notebook_file(content):
     metadata["markdown_cells"] = sum(1 for cell in content.get("cells", []) if cell.get("cell_type") == "markdown")
     return metadata
 
-def process_file(file_path):
+def process_file(file_path, toe_id):
     """Process file based on its type"""
     file_ext = os.path.splitext(file_path)[1].lower()
     file_size = os.path.getsize(file_path)
@@ -88,6 +110,7 @@ def process_file(file_path):
         }
         
         payload_content = {
+            "toe_id": toe_id,
             "type": "zip_file",
             "metadata": metadata,
             "data": zip_base64
@@ -112,6 +135,7 @@ def process_file(file_path):
         }
         
         payload_content = {
+            "toe_id": toe_id,
             "type": "jupyter_notebook",
             "metadata": metadata,
             "content": notebook_base64
@@ -135,6 +159,7 @@ def process_file(file_path):
         }
         
         payload_content = {
+            "toe_id": toe_id,
             "type": "python_script",
             "metadata": metadata,
             "content": python_base64
@@ -160,6 +185,7 @@ def process_file(file_path):
         }
         
         payload_content = {
+            "toe_id": toe_id,
             "type": "json_file",
             "metadata": metadata,
             "content": json_base64
@@ -320,6 +346,7 @@ def main():
         print("  python ids_toe_unified_sender.py notebook.ipynb")
         print("  python ids_toe_unified_sender.py script.py")
         print("  python ids_toe_unified_sender.py data.json")
+        print("  IDS_TOE_BASE_URL=http://ai-target-of-evaluation.cobalt.local:30005 python ids_toe_unified_sender.py data.json")
         sys.exit(1)
     
     file_path = sys.argv[1]
@@ -330,9 +357,12 @@ def main():
         sys.exit(1)
     
     print(f"Processing file: {file_path}")
+
+    toe_id = get_toe_id()
+    print(f"Using TOE ID from IDS-TOE: {toe_id}")
     
     # Process file based on type
-    payload_content, resource_type, iso_timestamp, metadata = process_file(file_path)
+    payload_content, resource_type, iso_timestamp, metadata = process_file(file_path, toe_id)
     
     # Build IDS resource
     ids_resource, text_resource = build_ids_resource(payload_content, resource_type, iso_timestamp)
@@ -341,6 +371,7 @@ def main():
     ids_data_as_string = json.dumps(ids_resource)
     payload = {
         "data_type": "json",
+        "toe_id": toe_id,
         "data": ids_data_as_string
     }
     
@@ -356,6 +387,7 @@ def main():
     print("=" * 70)
     print(f"URL: {IDS_TOE_URL}")
     print(f"Resource ID: {text_resource}")
+    print(f"TOE ID: {toe_id}")
     print(f"Timestamp: {iso_timestamp}")
     print(f"File: {file_path}")
     print(f"  - Type: {resource_type}")
