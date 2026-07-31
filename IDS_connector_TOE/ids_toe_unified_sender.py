@@ -31,7 +31,6 @@ def get_toe_id():
             headers={"Accept": "application/json"},
             timeout=30
         )
-        response.raise_for_status()
         response_data = response.json()
     except requests.exceptions.RequestException as e:
         print(f"Error: Could not fetch TOE ID from IDS TOE: {e}")
@@ -39,6 +38,17 @@ def get_toe_id():
         sys.exit(1)
     except ValueError:
         print("Error: IDS TOE returned a non-JSON response for TOE ID")
+        sys.exit(1)
+
+    if response.status_code == 404:
+        detail = response_data.get("detail", {})
+        if isinstance(detail, dict) and detail.get("code") == "TOE_ID_NOT_SET":
+            print("Error: IDS TOE has no TOE ID set. CCM Manager must post the TOE ID first.")
+            sys.exit(1)
+
+    if not response.ok:
+        print(f"Error: Could not fetch TOE ID from IDS TOE. Status: {response.status_code}")
+        print(json.dumps(response_data, indent=2))
         sys.exit(1)
 
     toe_id = response_data.get("toe_id")
