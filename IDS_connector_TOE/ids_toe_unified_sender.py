@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Unified script to POST various file types to IDS TOE Provider
-Supports: .zip, .ipynb, .py, .json files
+Supports: .zip, .ipynb, .py files
 Usage: python3 ids_toe_unified_sender.py <file_path>
 """
 import requests
@@ -20,27 +20,34 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 IDS_TOE_BASE_URL = os.environ.get("IDS_TOE_BASE_URL", "http://localhost:30005")
 IDS_TOE_URL = f"{IDS_TOE_BASE_URL}/api/IDSconnector/post_data"
 IDS_TOE_ID_URL = f"{IDS_TOE_BASE_URL}/api/IDSconnector/TOE/id"
+TOE_ID = None
+
 
 def get_toe_id():
-    """Fetch the active TOE ID from IDS-TOE before sending data."""
+    """Fetch the active TOE ID from IDS TOE."""
     try:
-        response = requests.get(IDS_TOE_ID_URL, headers={"Accept": "application/json"}, timeout=30)
+        response = requests.get(
+            IDS_TOE_ID_URL,
+            headers={"Accept": "application/json"},
+            timeout=30
+        )
         response.raise_for_status()
-        data = response.json()
+        response_data = response.json()
     except requests.exceptions.RequestException as e:
-        print(f"Error: Could not fetch TOE ID from IDS-TOE: {e}")
-        print(f"Make sure IDS-TOE is reachable at {IDS_TOE_ID_URL}")
+        print(f"Error: Could not fetch TOE ID from IDS TOE: {e}")
+        print(f"Make sure IDS TOE is reachable at {IDS_TOE_ID_URL}")
         sys.exit(1)
     except ValueError:
-        print("Error: IDS-TOE returned a non-JSON response for TOE ID")
+        print("Error: IDS TOE returned a non-JSON response for TOE ID")
         sys.exit(1)
 
-    toe_id = data.get("toe_id")
+    toe_id = response_data.get("toe_id")
     if not toe_id:
-        print("Error: IDS-TOE has no TOE ID set. CCM Manager must post the TOE ID first.")
+        print("Error: IDS TOE has no TOE ID set. CCM Manager must post the TOE ID first.")
         sys.exit(1)
 
     return toe_id
+
 
 def analyze_python_file(content):
     """Analyze Python file content and extract metadata"""
@@ -69,6 +76,7 @@ def analyze_python_file(content):
         pass
     return metadata
 
+
 def analyze_notebook_file(content):
     """Analyze Jupyter notebook content and extract metadata"""
     metadata = {}
@@ -85,7 +93,8 @@ def analyze_notebook_file(content):
     metadata["markdown_cells"] = sum(1 for cell in content.get("cells", []) if cell.get("cell_type") == "markdown")
     return metadata
 
-def process_file(file_path, toe_id):
+
+def process_file(file_path):
     """Process file based on its type"""
     file_ext = os.path.splitext(file_path)[1].lower()
     file_size = os.path.getsize(file_path)
@@ -110,7 +119,7 @@ def process_file(file_path, toe_id):
         }
         
         payload_content = {
-            "toe_id": toe_id,
+            "toe_id": TOE_ID,
             "type": "zip_file",
             "metadata": metadata,
             "data": zip_base64
@@ -135,7 +144,7 @@ def process_file(file_path, toe_id):
         }
         
         payload_content = {
-            "toe_id": toe_id,
+            "toe_id": TOE_ID,
             "type": "jupyter_notebook",
             "metadata": metadata,
             "content": notebook_base64
@@ -159,7 +168,7 @@ def process_file(file_path, toe_id):
         }
         
         payload_content = {
-            "toe_id": toe_id,
+            "toe_id": TOE_ID,
             "type": "python_script",
             "metadata": metadata,
             "content": python_base64
@@ -167,38 +176,13 @@ def process_file(file_path, toe_id):
         
         resource_type = "python"
         
-    elif file_ext == '.json':
-        # Process JSON file
-        with open(file_path, 'r', encoding='utf-8') as f:
-            json_content = f.read()
-        
-        # Validate it's parseable JSON
-        json_data = json.loads(json_content)
-        json_base64 = base64.b64encode(json_content.encode('utf-8')).decode('utf-8')
-        
-        metadata = {
-            **base_metadata,
-            "encoding": "base64",
-            "mime_type": "application/json",
-            "json_keys_count": len(json_data) if isinstance(json_data, dict) else "N/A (array)",
-            "json_size_chars": len(json_content)
-        }
-        
-        payload_content = {
-            "toe_id": toe_id,
-            "type": "json_file",
-            "metadata": metadata,
-            "content": json_base64
-        }
-        
-        resource_type = "json"
-        
     else:
         print(f"Error: Unsupported file type: {file_ext}")
         print("Supported types: .zip, .ipynb, .py")
         sys.exit(1)
     
     return payload_content, resource_type, iso_timestamp, metadata
+
 
 def build_ids_resource(payload_content, resource_type, iso_timestamp):
     """Build IDS TextResource structure"""
@@ -332,7 +316,10 @@ def build_ids_resource(payload_content, resource_type, iso_timestamp):
         }
     }, text_resource
 
+
 def main():
+    global TOE_ID
+
     # Check command line arguments
     if len(sys.argv) < 2:
         print("Usage: python ids_toe_unified_sender.py <file_path>")
@@ -340,13 +327,11 @@ def main():
         print("  - .zip  : ZIP archives (sent as base64)")
         print("  - .ipynb: Jupyter notebooks (sent as JSON)")
         print("  - .py   : Python scripts (sent as text)")
-        print("  - .json : JSON data files (sent as base64)")
         print("\nExample:")
         print("  python ids_toe_unified_sender.py myfile.zip")
         print("  python ids_toe_unified_sender.py notebook.ipynb")
         print("  python ids_toe_unified_sender.py script.py")
-        print("  python ids_toe_unified_sender.py data.json")
-        print("  IDS_TOE_BASE_URL=http://ai-target-of-evaluation.cobalt.local:30005 python ids_toe_unified_sender.py data.json")
+        print("  IDS_TOE_BASE_URL=http://ai-target-of-evaluation.cobalt.local:30005 python ids_toe_unified_sender.py script.py")
         sys.exit(1)
     
     file_path = sys.argv[1]
@@ -358,11 +343,12 @@ def main():
     
     print(f"Processing file: {file_path}")
 
-    toe_id = get_toe_id()
-    print(f"Using TOE ID from IDS-TOE: {toe_id}")
+    # Fetch TOE ID from IDS TOE instead of hardcoding it
+    TOE_ID = get_toe_id()
+    print(f"Using TOE ID from IDS TOE: {TOE_ID}")
     
     # Process file based on type
-    payload_content, resource_type, iso_timestamp, metadata = process_file(file_path, toe_id)
+    payload_content, resource_type, iso_timestamp, metadata = process_file(file_path)
     
     # Build IDS resource
     ids_resource, text_resource = build_ids_resource(payload_content, resource_type, iso_timestamp)
@@ -371,7 +357,7 @@ def main():
     ids_data_as_string = json.dumps(ids_resource)
     payload = {
         "data_type": "json",
-        "toe_id": toe_id,
+        "toe_id": TOE_ID,
         "data": ids_data_as_string
     }
     
@@ -387,7 +373,7 @@ def main():
     print("=" * 70)
     print(f"URL: {IDS_TOE_URL}")
     print(f"Resource ID: {text_resource}")
-    print(f"TOE ID: {toe_id}")
+    print(f"TOE ID: {TOE_ID}")
     print(f"Timestamp: {iso_timestamp}")
     print(f"File: {file_path}")
     print(f"  - Type: {resource_type}")
@@ -417,28 +403,29 @@ def main():
         print("-" * 70)
         
         if response.status_code == 200:
-            print(f"✓ SUCCESS! {resource_type.title()} file posted to IDS TOE successfully")
+            print(f"SUCCESS! {resource_type.title()} file posted to IDS TOE successfully")
             print("\nResponse body:")
             print(json.dumps(response.json(), indent=2))
         else:
-            print(f"✗ FAILED! Error posting {resource_type} file to IDS TOE")
+            print(f"FAILED! Error posting {resource_type} file to IDS TOE")
             print("\nResponse body:")
             try:
                 print(json.dumps(response.json(), indent=2))
-            except:
+            except Exception:
                 print(response.text)
         
         print("=" * 70)
         
     except requests.exceptions.ConnectionError as e:
-        print(f"\n✗ Connection Error: {e}")
+        print(f"\nConnection Error: {e}")
         print("Make sure IDS TOE is running at", IDS_TOE_URL)
     except requests.exceptions.Timeout as e:
-        print(f"\n✗ Timeout Error: {e}")
+        print(f"\nTimeout Error: {e}")
     except Exception as e:
-        print(f"\n✗ Unexpected Error: {e}")
+        print(f"\nUnexpected Error: {e}")
     
     print("\nTest completed.")
+
 
 if __name__ == "__main__":
     main()
