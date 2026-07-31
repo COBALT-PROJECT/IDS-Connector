@@ -67,7 +67,7 @@ class TOEProviderManager:
             scope=config.get('auth_scope', 'digital_twins profile'),
             request_timeout=config['request_timeout'],
             token_store=self.auth_token_store,
-            introspection_path=config.get('auth_introspection_path', '/oauth/introspect'),
+            token_validation_path=config.get('auth_token_validation_path', '/oauth/userinfo'),
         )
         logger.info("AuthenticationManager has been instantiated")
 

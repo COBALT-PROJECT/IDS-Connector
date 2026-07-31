@@ -45,7 +45,10 @@ CONFIG = {
     ),
     'auth_scope': os.environ.get('AUTH_SCOPE', 'digital_twins profile'),
     'auth_db_path': os.environ.get('AUTH_DB_PATH', 'authentication_tokens.db'),
-    'auth_introspection_path': os.environ.get('AUTH_INTROSPECTION_PATH', '/oauth/introspect'),
+    'auth_token_validation_path': os.environ.get(
+        'AUTH_TOKEN_VALIDATION_PATH',
+        '/oauth/userinfo'
+    ),
 }
 
 # Instantiate the Manager class

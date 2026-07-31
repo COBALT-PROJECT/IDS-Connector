@@ -377,7 +377,7 @@ class IDS_ProviderInterface:
                 status_code=401,
                 detail={
                     "code": "INVALID_BEARER_TOKEN",
-                    "message": "Could not validate caller JWT with Authentication Manager."
+                    "message": "Could not validate caller JWT with IAM /oauth/userinfo."
                 }
             )
 
