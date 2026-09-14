@@ -5,12 +5,18 @@ metadata:
 data:
   CONSUMER_BASE_URL: "https://tc-consumer:8444"
   SELF_DESCRIPTION_PATH: "/api/selfDescription/"
-  CACHE_TTL: "300"
+  CACHE_TTL: "300" # only governs the catalog-URL lookup (catalog_service.py); resource listing itself is never cached, see resource_state_store.py
   REQUEST_TIMEOUT: "30"
   HOST: "0.0.0.0"
   PORT: "8004"
   LOG_LEVEL: "info"
   RELOAD: "false"
+  # Resource sync state (resource_state_store.py) - tracks per-resource
+  # AVAILABLE/DELIVERED/CONFIRMED/DEAD so "already synced" means SDT
+  # actually confirmed ingestion, not just "we handed it out once".
+  STATE_FILE: "/data/resource_sync_state.json"
+  MAX_DELIVERY_ATTEMPTS: "5"
+  DELIVERY_TIMEOUT_SECONDS: "120"
 ---
 apiVersion: v1
 kind: Secret
@@ -20,6 +26,20 @@ type: Opaque
 stringData:
   username: admin
   password: password
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ids-connector-sdt-state-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # No storageClassName - binds to the cluster default (local-path on this
+  # k3s cluster). Survives pod restarts/recreation, unlike the old
+  # in-memory-only cache this replaces.
+  resources:
+    requests:
+      storage: 200Mi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -37,6 +57,14 @@ spec:
       labels:
         app: ids-connector-sdt
     spec:
+      # fsGroup makes kubelet chown the mounted PVC to gid 1000, which is
+      # the appuser group the container runs as (see Dockerfile) - without
+      # this the local-path-provisioner volume is root-owned and the
+      # non-root container can't write STATE_FILE to it.
+      nodeSelector:
+        kubernetes.io/hostname: sdtm
+      securityContext:
+        fsGroup: 1000
       containers:
       - name: ids-connector-sdt
         image: docker.io/allenabishek/ids-connector-sdt:v2.0.4 #if you are pulling from dockerhub, then use: allenabishek/ids-connector-sdt:v1.0.0, local image: ids-connector-sdt:v1.0.0
@@ -44,6 +72,9 @@ spec:
         ports:
         - containerPort: 8004
           protocol: TCP
+        volumeMounts:
+        - name: state
+          mountPath: /data
         env:
         - name: CONSUMER_BASE_URL
           valueFrom:
@@ -90,6 +121,21 @@ spec:
             secretKeyRef:
               name: ids-connector-sdt-secret
               key: password
+        - name: STATE_FILE
+          valueFrom:
+            configMapKeyRef:
+              name: ids-connector-sdt-configmap
+              key: STATE_FILE
+        - name: MAX_DELIVERY_ATTEMPTS
+          valueFrom:
+            configMapKeyRef:
+              name: ids-connector-sdt-configmap
+              key: MAX_DELIVERY_ATTEMPTS
+        - name: DELIVERY_TIMEOUT_SECONDS
+          valueFrom:
+            configMapKeyRef:
+              name: ids-connector-sdt-configmap
+              key: DELIVERY_TIMEOUT_SECONDS
         resources:
           requests:
             memory: "256Mi"
@@ -114,6 +160,10 @@ spec:
           #periodSeconds: 5
           #timeoutSeconds: 3
           #failureThreshold: 3
+      volumes:
+      - name: state
+        persistentVolumeClaim:
+          claimName: ids-connector-sdt-state-pvc
 ---
 apiVersion: v1
 kind: Service

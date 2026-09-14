@@ -141,6 +141,8 @@ spec:
       labels:
         io.kompose.service: tc-consumer
     spec:
+      nodeSelector:
+        kubernetes.io/hostname: sdtm
       containers:
       - image: rdlabengpa/ids_be_data_app:v0.2.5
 #        command: ["/bin/sh"]

@@ -19,6 +19,7 @@ IDS_connector_SDT/
 ├── manager.py
 ├── catalog_service.py
 ├── resource_service.py
+├── resource_state_store.py
 ├── ids_consumer_interface.py
 ├── requirements.txt
 ├── Dockerfile
@@ -178,8 +179,45 @@ The IDS SDT Connector consists of:
 2. **ConsumerResourceService**: Manages resource fetching and caching
 3. **IDS_ConsumerInterface**: FastAPI endpoint handlers
 4. **ConsumerResourceManager**: Orchestrates all services
+5. **ResourceStateStore**: Tracks per-resource sync state with PVC-backed persistence (see below)
 
-The service communicates with the tc-consumer pod internally within the Kubernetes cluster, caches responses for performance, and provides a RESTful API for external access.
+The service communicates with the tc-consumer pod internally within the Kubernetes cluster and provides a RESTful API for external access.
+
+## Resource State Store
+
+`resource_state_store.py` was **not present in the original standalone deployment** (pre-September 2026). It was introduced when the connector was containerised and deployed as a k3s pod.
+
+### Why it was added
+
+The original `ids_consumer_interface.py` used a simple **in-memory, time-based cache**: a resource would be hidden from SDT once it had been handed out, then reappear automatically after a TTL regardless of whether SDT had actually ingested it. This was acceptable when the process ran continuously as a standalone application, but in a pod environment a restart would lose all cache state and re-offer every resource to SDT from scratch.
+
+### What it does
+
+`resource_state_store.py` replaces the time-based cache with a **state machine**:
+
+```
+AVAILABLE → DELIVERED → CONFIRMED  (terminal — resource never re-offered)
+                      → AVAILABLE  (retry — SDT reported failure)
+                      → DEAD       (terminal — max retry attempts reached)
+```
+
+State is persisted as JSON to `STATE_FILE` (default `/data/resource_sync_state.json`), which is backed by a PVC (`ids-connector-sdt-state-pvc`) so it survives pod restarts. If the file is unwritable, the store logs a warning and continues serving from memory rather than crashing.
+
+A delivery timeout (`DELIVERY_TIMEOUT_SECONDS`) automatically reverts any resource stuck in DELIVERED back to AVAILABLE — this handles the case where the pod crashes between handing a resource to SDT and receiving the confirm callback.
+
+### Dependency
+
+`ids_consumer_interface.py` now imports from `resource_state_store`:
+```python
+from resource_state_store import resource_state, CONFIRMED, DEAD
+```
+The two files are coupled — removing `resource_state_store.py` without also reverting `ids_consumer_interface.py` to its original time-based cache version will break the service.
+
+### Relevant endpoints
+
+- `POST /api/IDSconnector/confirm` — SDT calls this after ingesting a resource to mark it CONFIRMED or report failure
+- `POST /api/IDSconnector/clear-cache` — resets all state back to AVAILABLE, forcing a full re-sync on the next poll
+- `GET /api/IDSconnector/SDT/info` — includes a `summary` field showing per-state resource counts
 
 ## Security Notes
 
@@ -190,9 +228,9 @@ The service communicates with the tc-consumer pod internally within the Kubernet
 
 ## Performance
 
-- Resources are cached for 5 minutes (configurable via CACHE_TTL)
-- Initial resource fetch may take time depending on the number of resources
-- Use the `/api/IDSconnector/clear-cache` endpoint to force refresh
+- Catalog listing is always fetched fresh from tc-consumer (no time-based cache)
+- Resource sync state is tracked by `resource_state_store.py` — a resource is only re-offered to SDT if its delivery is explicitly confirmed as failed, not on a timer
+- Use the `/api/IDSconnector/clear-cache` endpoint to reset all state and force a full re-sync
 
 ## Files extraction from IDS SDT connector
 

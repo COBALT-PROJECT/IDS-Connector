@@ -38,17 +38,18 @@ class ConsumerResourceService:
         self.username = username
         self.password = password
         self.request_timeout = request_timeout
-        
-        # Cache for resources
+
+        # Resource listing is intentionally NOT cached by time. Whether a
+        # resource is shown again is governed entirely by resource_state_store
+        # (AVAILABLE/DELIVERED/CONFIRMED/DEAD) in ids_consumer_interface.py,
+        # which reflects actual confirmed SDT ingestion rather than a TTL.
+        # Kept for get_resource_summary()'s optional default argument only.
         self._resources_cache = {
             'resources': [],
             'timestamp': None,
             'total_count': 0
         }
-        
-        # Set to track cleared resource IDs (to ignore in future fetches)
-        self._cleared_resource_ids = set()
-        
+
         logger.info(f"ConsumerResourceService initialized for {consumer_base_url}")
     
     def get_consumer_catalog(self) -> Optional[Dict]:
@@ -135,32 +136,18 @@ class ConsumerResourceService:
             logger.error(f"Error fetching resource {resource_id}: {str(e)}")
             return None
     
-    def get_all_text_resources(self, force_refresh: bool = False) -> List[Dict]:
-        """Retrieve all text resources from the Consumer, filtering out cleared ones"""
-        # Always fetch fresh if cleared resources exist or force_refresh is True
-        if force_refresh or self._cleared_resource_ids:
-            logger.info("Forcing refresh due to cleared resources or explicit request")
-            # Fetch fresh data
-            all_resources = self._fetch_all_resources()
-        elif self._resources_cache['resources']:
-            cache_age = self._get_cache_age()
-            logger.info(f"Using cached resources (age: {cache_age:.0f}s)")
-            return self._resources_cache['resources']
-        else:
-            all_resources = self._fetch_all_resources()
-        
-        # Filter out cleared resources
-        if self._cleared_resource_ids:
-            filtered_resources = [
-                res for res in all_resources 
-                if res.get('@id') not in self._cleared_resource_ids
-            ]
-            logger.info(f"Filtered out {len(all_resources) - len(filtered_resources)} cleared resources")
-            all_resources = filtered_resources
-        
-        # Update cache with filtered results
+    def get_all_text_resources(self, force_refresh: bool = True) -> List[Dict]:
+        """
+        Retrieve all text resources from the Consumer.
+
+        Always fetches fresh from the catalog - resource listing has no
+        time-based cache. Whether a given resource is worth re-showing to a
+        caller is a question for resource_state_store, not this method; this
+        always returns the ground truth. `force_refresh` is accepted for
+        backward compatibility with existing call sites but has no effect.
+        """
+        all_resources = self._fetch_all_resources()
         self._update_cache(all_resources)
-        
         return all_resources
     
     def _fetch_all_resources(self) -> List[Dict]:
@@ -253,40 +240,12 @@ class ConsumerResourceService:
             return float('inf')
         return (datetime.now() - self._resources_cache['timestamp']).total_seconds()
     
-    def clear_cache(self):
-        """Clear the resources cache and mark current resources as cleared"""
-        # Add current cached resource IDs to cleared set
-        current_ids = {res.get('@id') for res in self._resources_cache['resources'] if res.get('@id')}
-        self._cleared_resource_ids.update(current_ids)
-        logger.info(f"Marked {len(current_ids)} resources as cleared: {list(current_ids)}")
-        
-        # Clear the cache
-        self._resources_cache['resources'] = []
-        self._resources_cache['timestamp'] = None
-        self._resources_cache['total_count'] = 0
-        logger.info("Resources cache cleared")
-    
-    def clear_specific_resources(self, resource_ids: List[str]):
-        """Clear specific resources by their IDs"""
-        if not resource_ids:
-            logger.info("No resources to clear")
-            return
-        
-        # Add specified resource IDs to cleared set
-        self._cleared_resource_ids.update(resource_ids)
-        logger.info(f"Marked {len(resource_ids)} specific resources as cleared")
-        
-        # Remove these resources from cache if they exist
-        if self._resources_cache['resources']:
-            original_count = len(self._resources_cache['resources'])
-            self._resources_cache['resources'] = [
-                res for res in self._resources_cache['resources']
-                if res.get('@id') not in resource_ids
-            ]
-            removed_count = original_count - len(self._resources_cache['resources'])
-            logger.info(f"Removed {removed_count} resources from cache")
-            self._resources_cache['total_count'] = len(self._resources_cache['resources'])
-    
-    def get_cleared_resource_ids(self) -> List[str]:
-        """Get the list of cleared resource IDs"""
-        return list(self._cleared_resource_ids)
+    # NOTE: "cleared" resource tracking used to live here (_cleared_resource_ids,
+    # clear_cache, clear_specific_resources, get_cleared_resource_ids). That
+    # concept - "we handed this out once, don't show it again" - is exactly
+    # the bug this service had: it remembered *delivery*, not *confirmed
+    # ingestion*, and it lived only in memory. It's replaced by
+    # resource_state_store.resource_state, which tracks AVAILABLE / DELIVERED
+    # / CONFIRMED / DEAD per resource and is used directly from
+    # ids_consumer_interface.py. The /clear-cache and /cleared-ids HTTP
+    # endpoints still exist but now operate on that store instead.

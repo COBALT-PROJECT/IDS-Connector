@@ -19,6 +19,8 @@ spec:
         component: sync
         version: v1.0.0
     spec:
+      nodeSelector:
+        kubernetes.io/hostname: sdtm
       containers:
       - name: ids-sync
         image: allenabishek/ids-sync-service:v1.0.0

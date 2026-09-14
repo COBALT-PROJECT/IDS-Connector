@@ -14,6 +14,7 @@ import io
 import hmac
 from pydantic import BaseModel
 from sdt_config_store import sdt_config
+from resource_state_store import resource_state, CONFIRMED, DEAD
 
 logger = logging.getLogger(__name__)
 
@@ -91,11 +92,34 @@ class IDS_ConsumerInterface:
         @app.post("/api/IDSconnector/clear-cache")
         async def clear_resources_cache():
             return await self.clear_resources_cache()
-        
+
         # Get cleared resource IDs endpoint
         @app.get("/api/IDSconnector/cleared-ids")
         async def get_cleared_ids():
             return await self.get_cleared_ids()
+
+        # Confirm endpoint - SDT reports back what actually happened to each
+        # resource it was handed, so the connector's notion of "already
+        # synced" reflects real ingestion instead of a guess.
+        @app.post("/api/IDSconnector/confirm", tags=["IDSconnector-SDT"])
+        async def confirm_sync_results(
+            payload: Dict,
+            access_token: Optional[str] = Query(
+                None,
+                description="Caller's access token; must match the token registered with the IDS-SDT"
+            ),
+            authorization: Optional[str] = Header(None),
+        ):
+            return await self.confirm_sync_results(payload, access_token=access_token, authorization=authorization)
+
+        # Reconciliation / diagnostics endpoint - state counts, optionally
+        # scoped to one TOE, so "did everything really get confirmed" is a
+        # question with a direct answer instead of a guess.
+        @app.get("/api/IDSconnector/sync-status", tags=["IDSconnector-SDT"])
+        async def get_sync_status(
+            toe_id: Optional[str] = Query(None, description="Optional TOE ID to scope the summary to")
+        ):
+            return await self.get_sync_status(toe_id)
         
         # File extraction endpoint
         @app.get("/api/IDSconnector/extract_file", tags=["IDSconnector-SDT"])
@@ -162,45 +186,49 @@ class IDS_ConsumerInterface:
     # Helper Methods
     # ========================================================================
     
-    def _extract_toe_id_from_resource(self, resource: Dict) -> Optional[str]:
+    def _parse_resource_description(self, resource: Dict) -> Optional[Dict]:
         """
-        Extract toe_id from resource description field
-        
+        Parse the JSON embedded in a resource's ids:description field. This
+        is the sender's upload payload - {"toe_id", "type", "metadata": {...
+        "filename" ...}, "data"/"content"} - which arrives multiply-escaped
+        depending on how many times it was round-tripped through JSON
+        encoding on the way in.
+
         Args:
             resource: Resource dictionary
-        
+
         Returns:
-            toe_id if found, None otherwise
+            Parsed content dict, or None if there's nothing parseable.
         """
         try:
             resource_id = resource.get("@id", "unknown")
             descriptions = resource.get("ids:description", [])
-            
+
             if not descriptions:
                 logger.debug(f"No descriptions found in resource {resource_id}")
                 return None
-            
+
             # Get the first description value
             desc_value = descriptions[0].get("@value", "{}") if isinstance(descriptions[0], dict) else descriptions[0]
-            
+
             if not desc_value or desc_value == "{}":
                 logger.debug(f"Empty description value in resource {resource_id}")
                 return None
-            
+
             # Log the actual content for debugging
             logger.info(f"Parsing resource {resource_id.split('/')[-1]}: desc_value type={type(desc_value).__name__}, len={len(str(desc_value))}, preview={str(desc_value)[:150]}")
-            
+
             # Try to parse the JSON content
             if isinstance(desc_value, str):
                 content = None
-                
+
                 # Strategy 1: Try standard JSON parse
                 try:
                     content = json.loads(desc_value)
                     logger.debug(f"✓ Parsed with standard JSON for {resource_id.split('/')[-1]}")
                 except json.JSONDecodeError:
                     pass
-                
+
                 # Strategy 2: Try manual unescape of \" then parse
                 # This handles escaped quotes like {\"toe_id\": \"1234\"}
                 if content is None:
@@ -213,7 +241,7 @@ class IDS_ConsumerInterface:
                     except json.JSONDecodeError as e:
                         logger.info(f"Manual unescape failed: {e}")
                         pass
-                
+
                 # Strategy 3: Try double-decode (handles double-escaped JSON like \\\" )
                 if content is None:
                     try:
@@ -225,7 +253,7 @@ class IDS_ConsumerInterface:
                             logger.debug(f"✓ Parsed with double-decode for {resource_id.split('/')[-1]}")
                     except (json.JSONDecodeError, TypeError):
                         pass
-                
+
                 # Strategy 4: Try replacing single quotes with double quotes
                 if content is None:
                     try:
@@ -234,7 +262,7 @@ class IDS_ConsumerInterface:
                         logger.debug(f"✓ Parsed with quote replacement for {resource_id.split('/')[-1]}")
                     except json.JSONDecodeError:
                         pass
-                
+
                 # If all strategies failed, log and return None
                 if content is None:
                     logger.warning(f"Failed to parse description for resource {resource_id.split('/')[-1]}")
@@ -242,26 +270,113 @@ class IDS_ConsumerInterface:
                     return None
             else:
                 content = desc_value
-            
-            # Check if parsing succeeded
-            if content is None:
-                logger.warning(f"Failed to parse description for resource {resource_id.split('/')[-1]}")
-                return None
-            
-            # Extract toe_id
-            toe_id = content.get("toe_id") if isinstance(content, dict) else None
-            if toe_id:
-                logger.info(f"✓ Extracted toe_id '{toe_id}' from resource {resource_id.split('/')[-1]}")
-            else:
-                logger.debug(f"No toe_id field found in resource {resource_id.split('/')[-1]}")
-            return toe_id
-            
+
+            return content if isinstance(content, dict) else None
+
         except Exception as e:
-            logger.error(f"Exception extracting toe_id from resource {resource.get('@id', 'unknown')}: {str(e)}")
+            logger.error(f"Exception parsing description for resource {resource.get('@id', 'unknown')}: {str(e)}")
             import traceback
             logger.error(traceback.format_exc())
-        
+
         return None
+
+    def _extract_toe_id_from_resource(self, resource: Dict, content: Optional[Dict] = None) -> Optional[str]:
+        """
+        Extract toe_id from resource description field.
+
+        Args:
+            resource: Resource dictionary
+            content: Already-parsed description content, if the caller has
+                     it (avoids re-parsing); parsed fresh if omitted.
+
+        Returns:
+            toe_id if found, None otherwise
+        """
+        resource_id = resource.get("@id", "unknown")
+        if content is None:
+            content = self._parse_resource_description(resource)
+        if content is None:
+            return None
+
+        toe_id = content.get("toe_id")
+        if toe_id:
+            logger.info(f"✓ Extracted toe_id '{toe_id}' from resource {resource_id.split('/')[-1]}")
+        else:
+            logger.debug(f"No toe_id field found in resource {resource_id.split('/')[-1]}")
+        return toe_id
+
+    def _extract_filename_from_resource(self, resource: Dict, content: Optional[Dict] = None) -> Optional[str]:
+        """
+        Extract the uploaded filename from a resource's embedded metadata
+        (payload_content["metadata"]["filename"] in ids_toe_unified_sender.py).
+        Used, together with toe_id, to identify "the same file" across
+        re-uploads/new versions for duplicate resolution.
+
+        Returns:
+            filename if found, None otherwise
+        """
+        if content is None:
+            content = self._parse_resource_description(resource)
+        if content is None:
+            return None
+        return content.get("metadata", {}).get("filename")
+
+    def _validate_caller_token(
+        self,
+        access_token: Optional[str],
+        authorization: Optional[str],
+        context: str = "",
+    ) -> None:
+        """
+        Validate the caller's access token against the one SDT registered
+        via POST /api/IDSconnector/SDT/configauth. Shared by every endpoint
+        that requires the same shared-secret auth model (get_data_request,
+        confirm).
+
+        Raises:
+            HTTPException(401) on any validation failure.
+        """
+        # Resolve caller-provided token: prefer explicit query parameter,
+        # fall back to 'Authorization: Bearer <token>' header.
+        caller_token = access_token
+        if not caller_token and authorization:
+            auth = authorization.strip()
+            if auth.lower().startswith("bearer "):
+                caller_token = auth[7:].strip()
+            else:
+                caller_token = auth
+
+        if not caller_token:
+            raise HTTPException(
+                status_code=401,
+                detail={"code": "UNAUTHORIZED", "message": "access_token is required."}
+            )
+
+        # Ensure the IDS-SDT has been registered with an access token
+        if not sdt_config.is_configured:
+            logger.warning("Token validation requested but SDT config is not initialized")
+            raise HTTPException(
+                status_code=401,
+                detail={"code": "UNAUTHORIZED", "message": "IDS-SDT is not configured with an access token."}
+            )
+
+        expected_token = sdt_config.get("access_token")
+        if not expected_token:
+            logger.warning("No access_token registered in SDT config store")
+            raise HTTPException(
+                status_code=401,
+                detail={"code": "UNAUTHORIZED", "message": "IDS-SDT has no access token registered."}
+            )
+
+        # Constant-time comparison to mitigate timing attacks
+        if not hmac.compare_digest(str(caller_token), str(expected_token)):
+            logger.warning(f"Access token mismatch ({context})" if context else "Access token mismatch")
+            raise HTTPException(
+                status_code=401,
+                detail={"code": "UNAUTHORIZED", "message": "Invalid access token."}
+            )
+
+        logger.info(f"Access token validated successfully ({context})" if context else "Access token validated successfully")
     
     # ========================================================================
     # Main Data Request Handler (YAML Spec Compatible)
@@ -292,64 +407,10 @@ class IDS_ConsumerInterface:
             HTTPException: For various error conditions (400, 401, 404, 500)
         """
         try:
-            # ------------------------------------------------------------
-            # Access token validation
-            # ------------------------------------------------------------
-            # Resolve caller-provided token: prefer explicit query parameter,
-            # fall back to 'Authorization: Bearer <token>' header.
-            caller_token = access_token
-            if not caller_token and authorization:
-                auth = authorization.strip()
-                if auth.lower().startswith("bearer "):
-                    caller_token = auth[7:].strip()
-                else:
-                    caller_token = auth
-
-            if not caller_token:
-                raise HTTPException(
-                    status_code=401,
-                    detail={
-                        "code": "UNAUTHORIZED",
-                        "message": "access_token is required."
-                    }
-                )
-
-            # Ensure the IDS-SDT has been registered with an access token
-            if not sdt_config.is_configured:
-                logger.warning("Token validation requested but SDT config is not initialized")
-                raise HTTPException(
-                    status_code=401,
-                    detail={
-                        "code": "UNAUTHORIZED",
-                        "message": "IDS-SDT is not configured with an access token."
-                    }
-                )
-
-            expected_token = sdt_config.get("access_token")
-            if not expected_token:
-                logger.warning("No access_token registered in SDT config store")
-                raise HTTPException(
-                    status_code=401,
-                    detail={
-                        "code": "UNAUTHORIZED",
-                        "message": "IDS-SDT has no access token registered."
-                    }
-                )
-
-            # Constant-time comparison to mitigate timing attacks
-            if not hmac.compare_digest(str(caller_token), str(expected_token)):
-                logger.warning(
-                    f"Access token mismatch for data request (toe_id={toe_id}, data_path={data_path})"
-                )
-                raise HTTPException(
-                    status_code=401,
-                    detail={
-                        "code": "UNAUTHORIZED",
-                        "message": "Invalid access token."
-                    }
-                )
-
-            logger.info("Access token validated successfully")
+            self._validate_caller_token(
+                access_token, authorization,
+                context=f"toe_id={toe_id}, data_path={data_path}"
+            )
 
             # Validate required parameters
             if not toe_id:
@@ -380,25 +441,88 @@ class IDS_ConsumerInterface:
                 )
             
             logger.info(f"Processing data request - toe_id: {toe_id}, data_type: {data_type}, data_path: {data_path}")
-            
-            # Get all text resources first (without clearing cache)
-            force_refresh = bool(self.resource_service._cleared_resource_ids)
-            resources = self.resource_service.get_all_text_resources(force_refresh=force_refresh)
-            
+
+            # Revert anything stuck DELIVERED past the timeout (SDT crashed
+            # mid-ingest, or the confirm call itself got dropped) so it's
+            # retried instead of lost forever.
+            resource_state.sweep_expired_deliveries()
+
+            # Resource listing has no time-based cache - always fetch fresh.
+            # See resource_service.py / resource_state_store.py.
+            resources = self.resource_service.get_all_text_resources()
+
             # Filter resources based on toe_id if provided
             filtered_resources = resources
             if toe_id:
                 original_count = len(resources)
                 # Filter by checking toe_id in description field
                 filtered_resources = [
-                    res for res in resources 
+                    res for res in resources
                     if self._extract_toe_id_from_resource(res) == toe_id
                 ]
                 logger.info(f"Filtered resources by toe_id '{toe_id}': {original_count} -> {len(filtered_resources)}")
-            
+
             # Use filtered resources for the rest of the processing
             resources = filtered_resources
-            
+
+            # Check if requesting all resources FIRST
+            if data_path.lower() in ['all', '*', 'resources']:
+                # Only offer resources SDT hasn't already confirmed ingesting,
+                # and that aren't already checked out by another in-flight
+                # sync call for this same TOE.
+                candidates = [res for res in resources if resource_state.is_available(res.get('@id', ''))]
+
+                # Resolve duplicates: multiple resources sharing the same
+                # (toe_id, filename) are re-uploads/new versions of the same
+                # file. Keep only the newest and confirm the rest directly -
+                # they must never be offered or retried on their own.
+                # ids_toe_unified_sender.py suffixes resource IDs with a
+                # sortable "YYYYMMDD-HHMMSS" timestamp, so lexical max == newest.
+                groups: Dict[tuple, list] = {}
+                for res in candidates:
+                    content = self._parse_resource_description(res)
+                    filename = self._extract_filename_from_resource(res, content=content)
+                    key = (toe_id, filename or res.get('@id'))
+                    groups.setdefault(key, []).append(res)
+
+                kept = []
+                for group in groups.values():
+                    if len(group) > 1:
+                        group.sort(key=lambda r: r.get('@id', ''))
+                        newest, superseded = group[-1], group[:-1]
+                        for old in superseded:
+                            logger.info(
+                                f"Resource {old.get('@id')} superseded by newer upload "
+                                f"{newest.get('@id')} of the same file - confirming directly"
+                            )
+                            resource_state.confirm_superseded(old.get('@id'))
+                        kept.append(newest)
+                    else:
+                        kept.append(group[0])
+
+                # Claim (atomically mark DELIVERED) only what we're actually
+                # about to hand back - closes the race between two
+                # overlapping sync calls picking up the same resource.
+                claimed_ids = set(resource_state.claim_available([res.get('@id') for res in kept]))
+                to_return = [res for res in kept if res.get('@id') in claimed_ids]
+
+                logger.info(
+                    f"get_data_request(all): {len(resources)} matched toe_id, "
+                    f"{len(candidates)} available, {len(to_return)} returned this call"
+                )
+
+                payload = {"total": len(to_return), "resources": to_return}
+                response_data = json.dumps(payload) if data_type.lower() == "json" else str(payload)
+
+                # An empty result here is a normal, expected outcome -
+                # "nothing new for this TOE right now" - not an error. A
+                # poller sees 200 / total=0, never a 404, for this path.
+                return {
+                    "data_type": data_type,
+                    "data": response_data
+                }
+
+            # Named resource lookup (legacy path): no match really is a 404.
             if not resources:
                 raise HTTPException(
                     status_code=404,
@@ -407,34 +531,7 @@ class IDS_ConsumerInterface:
                         "message": f"No data at data_path: {data_path}"
                     }
                 )
-            
-            # Check if requesting all resources FIRST
-            if data_path.lower() in ['all', '*', 'resources']:
-                # Return all resources
-                if data_type.lower() == "json":
-                    response_data = json.dumps({
-                        "total": len(resources),
-                        "resources": resources
-                    })
-                else:
-                    # For CSV or other formats, convert appropriately
-                    response_data = str({
-                        "total": len(resources),
-                        "resources": resources
-                    })
-                
-                # Clear only the filtered resources AFTER preparing the response
-                # This ensures they won't be returned on future requests
-                logger.info(f"Clearing cache for {len(resources)} filtered resources")
-                resource_ids_to_clear = [res.get('@id') for res in resources if res.get('@id')]
-                self.resource_service.clear_specific_resources(resource_ids_to_clear)
-                self.catalog_service.clear_cache()
-                
-                return {
-                    "data_type": data_type,
-                    "data": response_data
-                }
-            
+
             # Search for the resource matching the criteria
             matching_resource = None
             
@@ -624,27 +721,113 @@ class IDS_ConsumerInterface:
     
     async def clear_resources_cache(self):
         """
-        Clear the resources cache
-        
+        Operator escape hatch: forget all tracked sync state. Every
+        CONFIRMED/DEAD resource becomes AVAILABLE again and will be
+        re-offered to SDT (whose own content dedupe will generally no-op
+        already-ingested ones straight back to 'skipped'/CONFIRMED).
+
+        This used to clear a time-based cache; there isn't one anymore -
+        it now resets resource_state_store instead. Use it to force a full
+        re-sync, not as routine maintenance.
+
         Returns:
             dict: Success message
         """
-        self.resource_service.clear_cache()
-        return Response(status_code=204)
-    
+        count = resource_state.reset_all()
+        return {"status": "ok", "message": "Resource sync state reset", "resources_reset": count}
+
     async def get_cleared_ids(self):
         """
-        Get the list of cleared resource IDs
-        
+        Get the list of resources SDT has already confirmed ingesting (or
+        that were quarantined as DEAD). Kept at its original URL for
+        backward compatibility; the underlying source of truth is now
+        resource_state_store, not a "cleared" set.
+
         Returns:
-            dict: List of cleared resource IDs
+            dict: Confirmed/dead resource IDs and a full state summary
         """
-        cleared_ids = self.resource_service.get_cleared_resource_ids()
+        confirmed_ids = resource_state.get_ids_by_state(CONFIRMED)
+        dead_ids = resource_state.get_ids_by_state(DEAD)
         return {
-            "cleared_resource_ids": cleared_ids,
-            "count": len(cleared_ids)
+            "cleared_resource_ids": confirmed_ids,  # legacy field name, now means "confirmed"
+            "count": len(confirmed_ids),
+            "dead_resource_ids": dead_ids,
+            "summary": resource_state.get_summary()
         }
-    
+
+    async def confirm_sync_results(
+        self,
+        payload: Dict,
+        access_token: Optional[str] = None,
+        authorization: Optional[str] = None,
+    ):
+        """
+        Receive SDT's per-resource ingestion outcomes for a prior sync call
+        and update resource_state_store accordingly. This is what makes
+        "already synced" mean "SDT actually confirmed it", not "we handed
+        it out once".
+
+        Expected JSON body:
+        {
+            "toe_id": str,
+            "results": [
+                {"resource_id": str, "outcome": "created"|"updated"|"skipped"|"failed"},
+                ...
+            ]
+        }
+
+        Returns:
+            dict: Per-resource resulting state, plus a state summary.
+        """
+        self._validate_caller_token(access_token, authorization, context="confirm")
+
+        results = payload.get("results", [])
+        if not isinstance(results, list) or not results:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "BAD_REQUEST", "message": "results must be a non-empty list."}
+            )
+
+        applied = []
+        skipped_entries = []
+        for entry in results:
+            resource_id = entry.get("resource_id")
+            outcome = entry.get("outcome")
+            if not resource_id or not outcome:
+                logger.warning(f"Ignoring malformed confirm entry (missing resource_id/outcome): {entry}")
+                skipped_entries.append(entry)
+                continue
+            new_state = resource_state.confirm(resource_id, outcome)
+            applied.append({"resource_id": resource_id, "outcome": outcome, "state": new_state})
+
+        logger.info(f"Confirm received for toe_id={payload.get('toe_id')}: {len(applied)} applied, {len(skipped_entries)} malformed")
+
+        return {
+            "status": "ok",
+            "applied": applied,
+            "ignored": skipped_entries,
+            "summary": resource_state.get_summary()
+        }
+
+    async def get_sync_status(self, toe_id: Optional[str] = None):
+        """
+        Reconciliation/diagnostics endpoint: state counts across all
+        tracked resources. `toe_id` is accepted for future per-TOE scoping;
+        resource_state_store doesn't key by toe_id today (a resource's
+        toe_id lives in its parsed description, not in the state entry), so
+        this currently reports the global summary regardless.
+
+        Returns:
+            dict: Counts by state (available resources aren't tracked until
+                  they transition, so 'available' here means "explicitly
+                  tracked and currently available", e.g. after a failed
+                  attempt - not the full untracked catalog).
+        """
+        return {
+            "toe_id": toe_id,
+            "summary": resource_state.get_summary()
+        }
+
     # ========================================================================
     # File Extraction Handlers
     # ========================================================================
