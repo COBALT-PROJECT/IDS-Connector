@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Unified script to POST various file types to IDS TOE Provider
-Supports: .zip, .ipynb, .py files
+Supports: .zip, .ipynb, .py, .json files
 Usage: python3 ids_toe_unified_sender.py <file_path>
 """
 import requests
@@ -104,6 +104,24 @@ def analyze_notebook_file(content):
     return metadata
 
 
+def analyze_json_file(content):
+    """Analyze JSON content and extract lightweight structural metadata"""
+    metadata = {}
+    metadata["json_type"] = type(content).__name__  # dict, list, etc.
+
+    if isinstance(content, dict):
+        metadata["top_level_keys"] = list(content.keys())[:20]
+        metadata["keys_count"] = len(content)
+    elif isinstance(content, list):
+        metadata["array_length"] = len(content)
+        if content and isinstance(content[0], dict):
+            metadata["item_keys"] = list(content[0].keys())[:20]
+
+    # Rough size in bytes of the serialized JSON
+    metadata["serialized_size_bytes"] = len(json.dumps(content).encode('utf-8'))
+    return metadata
+
+
 def process_file(file_path):
     """Process file based on its type"""
     file_ext = os.path.splitext(file_path)[1].lower()
@@ -186,9 +204,39 @@ def process_file(file_path):
         
         resource_type = "python"
         
+    elif file_ext == '.json':
+        # Process JSON file
+        with open(file_path, 'r', encoding='utf-8') as f:
+            try:
+                json_content = json.load(f)
+            except json.JSONDecodeError as e:
+                print(f"Error: Invalid JSON file: {e}")
+                sys.exit(1)
+        
+        json_string = json.dumps(json_content, indent=2)
+        json_base64 = base64.b64encode(json_string.encode('utf-8')).decode('utf-8')
+        
+        # Extract lightweight metadata about the JSON structure
+        json_meta = analyze_json_file(json_content)
+        metadata = {
+            **base_metadata,
+            "encoding": "base64",
+            "mime_type": "application/json",
+            **json_meta
+        }
+        
+        payload_content = {
+            "toe_id": TOE_ID,
+            "type": "json_file",
+            "metadata": metadata,
+            "content": json_base64
+        }
+        
+        resource_type = "json"
+        
     else:
         print(f"Error: Unsupported file type: {file_ext}")
-        print("Supported types: .zip, .ipynb, .py")
+        print("Supported types: .zip, .ipynb, .py, .json")
         sys.exit(1)
     
     return payload_content, resource_type, iso_timestamp, metadata
@@ -337,10 +385,12 @@ def main():
         print("  - .zip  : ZIP archives (sent as base64)")
         print("  - .ipynb: Jupyter notebooks (sent as JSON)")
         print("  - .py   : Python scripts (sent as text)")
+        print("  - .json : JSON data files (sent as base64)")
         print("\nExample:")
         print("  python ids_toe_unified_sender.py myfile.zip")
         print("  python ids_toe_unified_sender.py notebook.ipynb")
         print("  python ids_toe_unified_sender.py script.py")
+        print("  python ids_toe_unified_sender.py data.json")
         print("  IDS_TOE_BASE_URL=http://ai-target-of-evaluation.cobalt.local:30005 python ids_toe_unified_sender.py script.py")
         sys.exit(1)
     
