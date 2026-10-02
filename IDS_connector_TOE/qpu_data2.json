@@ -1,0 +1,45 @@
+[
+    {
+        "id": "OneQubitGateErrorRate",
+        "value": 9.999999999998899e-05,
+        "type": "float",
+        "timestamp": "2026-10-02 13:39:48"
+    },
+    {
+        "id": "TwoQubitGateErrorRate",
+        "value": 0.00019998999999992773,
+        "type": "float",
+        "timestamp": "2026-10-02 13:39:48"
+    },
+    {
+        "id": "SPAMErrorRate",
+        "value": 9.999999999998899e-05,
+        "type": "float",
+        "timestamp": "2026-10-02 13:39:48"
+    },
+    {
+        "id": "ErrorCorrectionEnabled",
+        "value": false,
+        "type": "bool",
+        "timestamp": "2026-10-02 13:39:48"
+    },
+    {
+        "id": "T1CoherenceTime",
+        "value": 0.0001,
+        "type": "float",
+        "timestamp": "2026-10-02 13:39:48"
+    },
+    {
+        "id": "T2CoherenceTime",
+        "value": 0.0001,
+        "type": "float",
+        "timestamp": "2026-10-02 13:39:48"
+    },
+    {
+        "id": "UniversalGateSetEnabled",
+        "value": true,
+        "type": "bool",
+        "timestamp": "2026-10-02 13:39:48"
+    }
+]
+ 
