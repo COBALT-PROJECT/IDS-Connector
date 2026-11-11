@@ -20,6 +20,7 @@ IDS_connector_SDT/
 ├── catalog_service.py
 ├── resource_service.py
 ├── resource_state_store.py
+├── sdt_config_store.py
 ├── ids_consumer_interface.py
 ├── requirements.txt
 ├── Dockerfile
@@ -73,23 +74,43 @@ Then access:
 ## API Endpoints
 
 ### Main Endpoints
-- `GET /api/IDSconnector/get_data_request` - Retrieve resource data
-  - Query Parameters:
-    - `toe_id`: Entity to be synchronized with (required)
-    - `data_type`: Data format (json/csv) (required)
-    - `data_path`: Resource path or "all" for all resources (required)
-  
-- `GET /api/IDSconnector/SDT/info` - Get consumer configuration info
-- `POST /api/IDSconnector/clear-cache` - Clear resource cache
-- `GET /health` - Health check endpoint
+
+| Endpoint | Method | Auth required | Description |
+|---|---|---|---|
+| `/api/IDSconnector/get_data_request` | GET | Yes — `access_token` (see [Authentication](#authentication--sdt-registration)) | Retrieve resource data. Query params: `toe_id` (required), `data_type` (required, e.g. `json`), `data_path` (required, resource path or `all`). |
+| `/api/IDSconnector/extract_file` | GET | No | Extract a file embedded in a resource. Query params: `data_path` (required), `return_format` (`json` or `binary`, default `json`). |
+| `/api/IDSconnector/confirm` | POST | Yes — `access_token` | SDT reports back the real outcome (`confirmed`/`failed`) for resources it was handed, driving the state machine in [Resource State Store](#resource-state-store). |
+| `/api/IDSconnector/sync-status` | GET | No | Reconciliation/diagnostics: per-state resource counts, optionally scoped to a `toe_id` query param. |
+| `/api/IDSconnector/cleared-ids` | GET | No | List of resource IDs already `CONFIRMED` (i.e. no longer offered). |
+| `/api/IDSconnector/SDT/configauth` | POST | No (this *is* the registration call) | SDT registers its `sdt_id`, `client_id`/`client_secret`, and the shared `access_token` the endpoints above will require. See [Authentication](#authentication--sdt-registration). |
+| `/api/IDSconnector/SDT/configauth` | GET | No | Current SDT registration status (secrets redacted). |
+| `/api/IDSconnector/SDT/info` | GET | No | Consumer configuration info. |
+| `/api/IDSconnector/clear-cache` | POST | No | Clear resource cache. |
+| `/health` | GET | No | Health check endpoint. |
 
 ### Example API Calls
 ```bash
-# Get all resources as JSON
-curl "http://localhost:8004/api/IDSconnector/get_data_request?toe_id=test&data_type=json&data_path=all"
+# Register SDT and obtain the shared access token requirement
+curl -X POST http://localhost:8004/api/IDSconnector/SDT/configauth \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sdt_id": "sdt-1",
+    "client_id": "sdt-client",
+    "client_secret": "change-me",
+    "access_token": "shared-secret-token",
+    "components": {"sdt": "1.0", "ids_connector": "1.0", "watchtower": "1.0"}
+  }'
+
+# Get all resources as JSON (access_token required once SDT has registered)
+curl "http://localhost:8004/api/IDSconnector/get_data_request?toe_id=test&data_type=json&data_path=all&access_token=shared-secret-token"
 
 # Get specific resource
-curl "http://localhost:8004/api/IDSconnector/get_data_request?toe_id=test&data_type=json&data_path=resource-name"
+curl "http://localhost:8004/api/IDSconnector/get_data_request?toe_id=test&data_type=json&data_path=resource-name&access_token=shared-secret-token"
+
+# Confirm a resource was ingested
+curl -X POST "http://localhost:8004/api/IDSconnector/confirm?access_token=shared-secret-token" \
+  -H "Content-Type: application/json" \
+  -d '{"results": [{"resource_id": "<id>", "outcome": "confirmed"}]}'
 
 # Check health
 curl http://localhost:8004/health
@@ -97,6 +118,14 @@ curl http://localhost:8004/health
 # Get consumer info
 curl http://localhost:8004/api/IDSconnector/SDT/info
 ```
+
+## Authentication & SDT Registration
+
+Unlike `IDS_connector_TOE` (which validates callers against an external IAM via OAuth2 JWTs — see [its Authentication section](../IDS_connector_TOE/Readme.md#authentication)), `IDS_connector_SDT` uses a simpler **shared-secret token** model:
+
+1. SDT calls `POST /api/IDSconnector/SDT/configauth` once, registering `sdt_id`, `client_id`, `client_secret`, and an `access_token` it chooses. This is stored in-memory by `sdt_config_store.py` (`SDTConfigStore` singleton) — **not persisted to disk**, so SDT must re-register after a pod restart.
+2. Every call to `get_data_request` or `confirm` must then supply that same `access_token`, either as a query parameter or as an `Authorization: Bearer <token>` header. `ids_consumer_interface.py`'s `_validate_caller_token()` compares it against the registered value using a constant-time comparison (`hmac.compare_digest`) and rejects the call with `401 UNAUTHORIZED` on any mismatch or if SDT hasn't registered yet.
+3. `GET /api/IDSconnector/SDT/configauth` returns the current registration status with secrets redacted, so you can check whether SDT has registered without needing the token itself.
 
 ## Deployment Scripts
 
@@ -180,6 +209,7 @@ The IDS SDT Connector consists of:
 3. **IDS_ConsumerInterface**: FastAPI endpoint handlers
 4. **ConsumerResourceManager**: Orchestrates all services
 5. **ResourceStateStore**: Tracks per-resource sync state with PVC-backed persistence (see below)
+6. **SDTConfigStore**: In-memory store for the SDT registration payload (shared-secret `access_token`, client credentials) received via `POST /api/IDSconnector/SDT/configauth` — see [Authentication & SDT Registration](#authentication--sdt-registration)
 
 The service communicates with the tc-consumer pod internally within the Kubernetes cluster and provides a RESTful API for external access.
 

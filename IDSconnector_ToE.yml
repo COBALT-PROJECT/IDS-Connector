@@ -1,9 +1,14 @@
 openapi: 3.0.3
 info:
   title: IDS Connector ToE API
-  version: "1.0.0"
+  version: "1.1.0"
   description: |
-    API endpoint for the TOE to post data to the IDSconnector (toe).
+    API endpoints for a Trusted Operational Environment (ToE) to post data to the
+    IDSconnector (toe), and for managing its TOE ID and Authentication Manager (IAM) JWT.
+
+    `POST /api/IDSconnector/TOE/id` requires a caller bearer JWT, validated against the
+    IAM's /oauth/userinfo endpoint — see the `/api/IDSconnector/TOE/jwt/*` endpoints for
+    this service's own IAM JWT lifecycle.
 servers:
   - url: https://10.254.3.188:8005
     description: Local IDSconnector instance (ToE)
@@ -11,6 +16,9 @@ paths:
   /api/IDSconnector/post_data:
     post:
       summary: Post data from TOE to Provider IDS connector instance
+      description: >
+        Requires a TOE ID to already be set via POST /api/IDSconnector/TOE/id — the TOE ID
+        is injected into the payload before it is posted to tc-provider.
       operationId: postDataRequest
       tags: [IDSconnector-provider]
       requestBody:
@@ -18,7 +26,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/data_response'
+              $ref: '#/components/schemas/data_request'
             examples:
               example:
                 value:
@@ -30,14 +38,28 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/data_response'
+                $ref: '#/components/schemas/post_data_response'
               examples:
                 example:
                   value:
                     data_type: "json"
+                    toe_id: "3e671687-395b-41f5-a30f-a58921a69b79"
                     data: "timestamp,value\n2025-09-30T10:25:00Z,23.4\n"
+                    status: "success"
+                    message: "Data posted successfully to provider"
+                zipExample:
+                  value:
+                    data_type: "json"
+                    toe_id: "3e671687-395b-41f5-a30f-a58921a69b79"
+                    data: "<zip payload as JSON text>"
+                    status: "success"
+                    message: "Data posted successfully to provider"
+                    zip_hash:
+                      algorithm: "SHA-256"
+                      value: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+                      message: "Hash computed from zip file (without extracting contents)"
         '400':
-          description: Invalid data_request payload
+          description: Invalid request, or no TOE ID set yet
           content:
             application/json:
               schema:
@@ -46,7 +68,11 @@ paths:
                 badRequest:
                   value:
                     code: "BAD_REQUEST"
-                    message: "data_path is required."
+                    message: "data_type is required."
+                toeIdNotSet:
+                  value:
+                    code: "TOE_ID_NOT_SET"
+                    message: "Set TOE ID first using POST /api/IDSconnector/TOE/id."
         '404':
           description: Data not found for the given path or TOE
           content:
@@ -68,21 +94,375 @@ paths:
                 serverError:
                   value:
                     code: "INTERNAL_ERROR"
-                    message: "Unexpected error while fetching data."
+                    message: "Unexpected error while posting data."
+  /api/IDSconnector/clear-cache:
+    post:
+      summary: Clear the provider catalog cache
+      operationId: clearCache
+      tags: [IDSconnector-provider]
+      responses:
+        '200':
+          description: Catalog cache cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Catalog cache cleared successfully"
+  /api/IDSconnector/TOE/info:
+    get:
+      summary: Get provider configuration info
+      operationId: getProviderInfo
+      tags: [IDSconnector-provider]
+      responses:
+        '200':
+          description: Provider configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/provider_info_response'
+              examples:
+                example:
+                  value:
+                    provider_base_url: "https://tc-provider:8090"
+                    username: "admin"
+                    timeout: 30
+                    catalog_cache_ttl: 300
+                    toe_id: "3e671687-395b-41f5-a30f-a58921a69b79"
+  /api/IDSconnector/TOE/id:
+    post:
+      summary: Set the TOE ID used by future post_data requests
+      description: Requires a valid caller JWT, validated against the IAM's /oauth/userinfo endpoint.
+      operationId: setToeId
+      tags: [IDSconnector-provider]
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          schema:
+            type: string
+          description: "'Bearer <caller JWT>'"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/toe_id_request'
+      responses:
+        '200':
+          description: TOE ID stored successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  toe_id:
+                    type: string
+                  message:
+                    type: string
+                    example: "TOE ID stored successfully"
+        '400':
+          description: toe_id is not a valid UUID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                badRequest:
+                  value:
+                    code: "BAD_REQUEST"
+                    message: "toe_id must be a valid UUID."
+        '401':
+          description: Missing, invalid, or inactive bearer JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                missingToken:
+                  value:
+                    code: "MISSING_BEARER_TOKEN"
+                    message: "Send Authorization: Bearer <jwt> when posting the TOE ID."
+                invalidToken:
+                  value:
+                    code: "INVALID_BEARER_TOKEN"
+                    message: "Could not validate caller JWT with IAM /oauth/userinfo."
+                inactiveToken:
+                  value:
+                    code: "INACTIVE_BEARER_TOKEN"
+                    message: "Caller JWT is not active."
+        '503':
+          description: AuthenticationManager not configured
+    get:
+      summary: Get the currently stored TOE ID
+      operationId: getToeId
+      tags: [IDSconnector-provider]
+      responses:
+        '200':
+          description: TOE ID is set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  toe_id:
+                    type: string
+                  status:
+                    type: string
+                    example: "set"
+        '404':
+          description: No TOE ID has been set yet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                notSet:
+                  value:
+                    code: "TOE_ID_NOT_SET"
+                    message: "No TOE ID has been set."
+  /api/IDSconnector/TOE/jwt/refresh:
+    post:
+      summary: Fetch and store a new JWT from the Authentication Manager
+      description: This service's own OAuth2 client-credentials JWT, used for its outbound IAM calls.
+      operationId: refreshJwt
+      tags: [Authentication]
+      responses:
+        '200':
+          description: JWT refreshed and stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "JWT refreshed and stored successfully"
+                  token:
+                    $ref: '#/components/schemas/jwt_metadata'
+        '502':
+          description: Refresh request to the IAM failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                refreshFailed:
+                  value:
+                    code: "JWT_REFRESH_FAILED"
+                    message: "<underlying error>"
+        '503':
+          description: AuthenticationManager not configured
+  /api/IDSconnector/TOE/jwt/status:
+    get:
+      summary: Return metadata for the stored JWT without exposing the token
+      operationId: getJwtStatus
+      tags: [Authentication]
+      responses:
+        '200':
+          description: JWT metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/jwt_metadata'
+              examples:
+                noToken:
+                  value:
+                    has_token: false
+        '503':
+          description: AuthenticationManager not configured
+  /api/IDSconnector/TOE/jwt/request:
+    post:
+      summary: Call the Authentication Manager using this service's stored JWT
+      operationId: authenticatedJwtRequest
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/authenticated_request'
+            examples:
+              example:
+                value:
+                  method: "GET"
+                  path: "/api/digital-twins"
+      responses:
+        '200':
+          description: Response proxied from the Authentication Manager
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status_code:
+                    type: integer
+                  url:
+                    type: string
+                  response:
+                    description: Raw JSON (or text) response body from the Authentication Manager.
+        '400':
+          description: Unsupported HTTP method
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+        '404':
+          description: No JWT is stored - refresh the JWT first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                noJwt:
+                  value:
+                    code: "JWT_NOT_AVAILABLE"
+                    message: "No JWT is stored. Refresh the JWT first."
+        '502':
+          description: The request to the Authentication Manager failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                requestFailed:
+                  value:
+                    code: "JWT_REQUEST_FAILED"
+                    message: "<underlying error>"
+        '503':
+          description: AuthenticationManager not configured
+  /health:
+    get:
+      summary: Health check
+      operationId: health
+      tags: [IDSconnector-provider]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  service:
+                    type: string
+                    example: "IDS TOE Provider API Server"
+                  provider:
+                    type: string
+                    example: "https://tc-provider:8090"
+                  toe_id:
+                    type: string
+                    nullable: true
 components:
   schemas:
-    data_response:
+    data_request:
       type: object
       required: [data_type, data]
       properties:
         data_type:
           type: string
-          description: Type of data returned
+          description: Type of data being posted
           example: "json"
         data:
           type: string
-          description: The actual data payload
+          description: The actual data payload (an IDS TextResource as a JSON string)
           example: "timestamp,value\n2025-09-30T10:25:00Z,23.4\n"
+    post_data_response:
+      type: object
+      required: [data_type, toe_id, data, status, message]
+      properties:
+        data_type:
+          type: string
+          example: "json"
+        toe_id:
+          type: string
+        data:
+          type: string
+          description: The posted data, echoed back (with the TOE ID injected)
+        status:
+          type: string
+          example: "success"
+        message:
+          type: string
+          example: "Data posted successfully to provider"
+        zip_hash:
+          type: object
+          description: Present only when the posted data was a zip file.
+          properties:
+            algorithm:
+              type: string
+              example: "SHA-256"
+            value:
+              type: string
+            message:
+              type: string
+    provider_info_response:
+      type: object
+      properties:
+        provider_base_url:
+          type: string
+        username:
+          type: string
+        timeout:
+          type: integer
+        catalog_cache_ttl:
+          type: integer
+        toe_id:
+          type: string
+          nullable: true
+    toe_id_request:
+      type: object
+      required: [toe_id]
+      properties:
+        toe_id:
+          type: string
+          description: TOE UUID
+          example: "3e671687-395b-41f5-a30f-a58921a69b79"
+    jwt_metadata:
+      type: object
+      properties:
+        has_token:
+          type: boolean
+        token_type:
+          type: string
+          example: "Bearer"
+        scope:
+          type: string
+          example: "digital_twins profile"
+        expires_in:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+    authenticated_request:
+      type: object
+      required: [path]
+      properties:
+        method:
+          type: string
+          default: "GET"
+          enum: ["GET", "POST", "PUT", "PATCH", "DELETE"]
+        path:
+          type: string
+          description: Authentication Manager API path, e.g. /api/digital-twins
+        payload:
+          type: object
+          nullable: true
+          additionalProperties: true
     error:
       type: object
       required: [code, message]

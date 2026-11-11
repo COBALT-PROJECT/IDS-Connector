@@ -1,9 +1,14 @@
 openapi: 3.0.3
 info:
   title: IDS Connector SDT API
-  version: "1.0.0"
+  version: "1.1.0"
   description: |
-    API endpoint for the SDT to request data from the IDS Connector (sdt) (consumer).
+    API endpoints for the SDT to request data from, and report sync results back to,
+    the IDS Connector (sdt) (consumer).
+
+    `get_data_request` and `confirm` require the shared-secret `access_token` that SDT
+    registers via `POST /api/IDSconnector/SDT/configauth` — pass it either as the
+    `access_token` query parameter or as an `Authorization: Bearer <token>` header.
 servers:
   - url: https://10.254.3.188:8004
     description: Local IDSconnector instance (sdt)
@@ -32,7 +37,22 @@ paths:
           required: true
           schema:
             type: string
-          description: Path to the data source
+          description: Path to the data resource, or "all" for every available resource
+        - name: access_token
+          in: query
+          required: false
+          schema:
+            type: string
+          description: >
+            Shared-secret token registered via POST /api/IDSconnector/SDT/configauth.
+            Required once SDT has registered; may be sent instead as an
+            'Authorization: Bearer <token>' header.
+        - name: Authorization
+          in: header
+          required: false
+          schema:
+            type: string
+          description: "Alternative to the access_token query parameter: 'Bearer <token>'"
       responses:
         '200':
           description: Data successfully retrieved
@@ -56,6 +76,17 @@ paths:
                   value:
                     code: "BAD_REQUEST"
                     message: "data_path is required."
+        '401':
+          description: Missing, invalid, or not-yet-registered access_token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                unauthorized:
+                  value:
+                    code: "UNAUTHORIZED"
+                    message: "Invalid access token."
         '404':
           description: Data not found for the given path or TOE
           content:
@@ -144,6 +175,226 @@ paths:
                   value:
                     code: "INTERNAL_ERROR"
                     message: "Error extracting file: Unexpected error"
+  /api/IDSconnector/confirm:
+    post:
+      summary: SDT reports back the real ingestion outcome for resources it was handed
+      description: >
+        Drives the resource_state_store state machine: a resource only becomes CONFIRMED
+        (and stops being re-offered) once SDT reports it here. Resource IDs reported as
+        "failed" are reverted to AVAILABLE for retry.
+      operationId: confirmSyncResults
+      tags: [IDSconnector-sdt]
+      parameters:
+        - name: access_token
+          in: query
+          required: false
+          schema:
+            type: string
+          description: "Shared-secret token (or send as an 'Authorization: Bearer <token>' header instead)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/confirm_request'
+            examples:
+              example:
+                value:
+                  toe_id: "toe-12345"
+                  results:
+                    - resource_id: "https://w3id.org/idsa/autogen/textResource/abc-123"
+                      outcome: "created"
+      responses:
+        '200':
+          description: Confirm results applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/confirm_response'
+              examples:
+                example:
+                  value:
+                    status: "ok"
+                    applied:
+                      - resource_id: "https://w3id.org/idsa/autogen/textResource/abc-123"
+                        outcome: "created"
+                        state: "confirmed"
+                    ignored: []
+                    summary:
+                      available: 2
+                      delivered: 1
+                      confirmed: 10
+                      dead: 0
+        '400':
+          description: Malformed confirm payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                badRequest:
+                  value:
+                    code: "BAD_REQUEST"
+                    message: "results must be a non-empty list."
+        '401':
+          description: Missing, invalid, or not-yet-registered access_token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+  /api/IDSconnector/sync-status:
+    get:
+      summary: Reconciliation/diagnostics - per-state resource counts
+      operationId: getSyncStatus
+      tags: [IDSconnector-sdt]
+      parameters:
+        - name: toe_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: >
+            Optional TOE ID to scope the summary to. Accepted for forward compatibility;
+            the current implementation always returns the global summary.
+      responses:
+        '200':
+          description: Current sync state summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/sync_status_response'
+              examples:
+                example:
+                  value:
+                    toe_id: "toe-12345"
+                    summary:
+                      available: 2
+                      delivered: 1
+                      confirmed: 10
+                      dead: 0
+  /api/IDSconnector/cleared-ids:
+    get:
+      summary: List resource IDs SDT has already confirmed ingesting
+      description: >
+        Kept at its original URL for backward compatibility; "cleared" now means
+        "confirmed" under resource_state_store.
+      operationId: getClearedIds
+      tags: [IDSconnector-sdt]
+      responses:
+        '200':
+          description: Confirmed/dead resource IDs and a full state summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/cleared_ids_response'
+  /api/IDSconnector/SDT/configauth:
+    post:
+      summary: SDT registers its credentials and the shared access_token
+      description: >
+        SDT calls this once to register the shared-secret access_token that
+        get_data_request and confirm will then require. Stored in memory only
+        (sdt_config_store.py) — SDT must re-register after a pod restart.
+      operationId: registerSdtConfig
+      tags: [IDSconnector-sdt-registration]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/configauth_request'
+      responses:
+        '200':
+          description: Configuration stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/configauth_response'
+        '400':
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+              examples:
+                badRequest:
+                  value:
+                    code: "BAD_REQUEST"
+                    message: "Missing required fields: access_token"
+    get:
+      summary: Current SDT registration status (secrets redacted)
+      operationId: getSdtConfigStatus
+      tags: [IDSconnector-sdt-registration]
+      responses:
+        '200':
+          description: Registration status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/configauth_status_response'
+              examples:
+                unconfigured:
+                  value:
+                    configured: false
+  /api/IDSconnector/SDT/info:
+    get:
+      summary: Get consumer configuration info
+      operationId: getConsumerInfo
+      tags: [IDSconnector-sdt]
+      responses:
+        '200':
+          description: Consumer configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/consumer_info_response'
+  /api/IDSconnector/clear-cache:
+    post:
+      summary: Reset all tracked resource sync state (operator escape hatch)
+      description: >
+        Not a routine-maintenance call: every CONFIRMED/DEAD resource becomes AVAILABLE
+        again and will be re-offered on the next get_data_request. Use it to force a
+        full re-sync.
+      operationId: clearResourcesCache
+      tags: [IDSconnector-sdt]
+      responses:
+        '200':
+          description: Resource sync state reset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  message:
+                    type: string
+                    example: "Resource sync state reset"
+                  resources_reset:
+                    type: integer
+                    example: 3
+  /health:
+    get:
+      summary: Health check
+      operationId: health
+      tags: [IDSconnector-sdt]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  service:
+                    type: string
+                    example: "IDS Consumer Resource API Server"
+                  consumer:
+                    type: string
+                    example: "https://tc-consumer:8444"
 components:
   schemas:
     data_request:
@@ -201,6 +452,155 @@ components:
               type: integer
               description: File size in bytes
               example: 1024
+    state_summary:
+      type: object
+      description: Resource counts by resource_state_store state.
+      properties:
+        available:
+          type: integer
+        delivered:
+          type: integer
+        confirmed:
+          type: integer
+        dead:
+          type: integer
+    confirm_request:
+      type: object
+      required: [results]
+      properties:
+        toe_id:
+          type: string
+          example: "toe-12345"
+        results:
+          type: array
+          items:
+            type: object
+            required: [resource_id, outcome]
+            properties:
+              resource_id:
+                type: string
+              outcome:
+                type: string
+                enum: ["created", "updated", "skipped", "failed"]
+    confirm_response:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"
+        applied:
+          type: array
+          items:
+            type: object
+            properties:
+              resource_id:
+                type: string
+              outcome:
+                type: string
+              state:
+                type: string
+                enum: ["available", "delivered", "confirmed", "dead"]
+        ignored:
+          type: array
+          items:
+            type: object
+          description: Malformed entries (missing resource_id/outcome) that were skipped.
+        summary:
+          $ref: '#/components/schemas/state_summary'
+    sync_status_response:
+      type: object
+      properties:
+        toe_id:
+          type: string
+          nullable: true
+        summary:
+          $ref: '#/components/schemas/state_summary'
+    cleared_ids_response:
+      type: object
+      properties:
+        cleared_resource_ids:
+          type: array
+          items:
+            type: string
+          description: "Legacy field name - now means 'confirmed'"
+        count:
+          type: integer
+        dead_resource_ids:
+          type: array
+          items:
+            type: string
+        summary:
+          $ref: '#/components/schemas/state_summary'
+    configauth_request:
+      type: object
+      required: [sdt_id, client_id, client_secret, access_token, components]
+      properties:
+        sdt_id:
+          type: string
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        access_token:
+          type: string
+          description: Shared secret that future get_data_request/confirm calls must present.
+        components:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            sdt: "1.0"
+            ids_connector: "1.0"
+            watchtower: "1.0"
+    configauth_response:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"
+        message:
+          type: string
+          example: "SDT configuration stored successfully"
+        sdt_id:
+          type: string
+        components:
+          type: array
+          items:
+            type: string
+    configauth_status_response:
+      type: object
+      properties:
+        configured:
+          type: boolean
+        registered_at:
+          type: string
+          format: date-time
+          nullable: true
+        sdt_id:
+          type: string
+        client_id:
+          type: string
+        client_secret:
+          type: string
+          example: "***redacted***"
+        access_token:
+          type: string
+          example: "***redacted***"
+        components:
+          type: object
+          additionalProperties:
+            type: string
+    consumer_info_response:
+      type: object
+      properties:
+        consumer_base_url:
+          type: string
+        username:
+          type: string
+        timeout:
+          type: integer
+        catalog_cache_ttl:
+          type: integer
     error:
       type: object
       required: [code, message]

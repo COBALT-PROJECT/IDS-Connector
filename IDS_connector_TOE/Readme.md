@@ -12,6 +12,7 @@ IDS TOE Provider component that receives data from Trusted Operational Environme
 - [Testing](#testing)
 - [Configuration](#configuration)
 - [API Endpoints](#api-endpoints)
+- [Authentication](#authentication)
 - [Troubleshooting](#troubleshooting)
 
 ## Architecture
@@ -32,10 +33,12 @@ TOE → POST data → ids_toe_service:8005 → POST → tc-provider:8090
 
 ### Python Files
 - **main.py** - Application entry point, runs on port 8005
-- **manager.py** - Orchestrates catalog and resource services
+- **manager.py** - Orchestrates catalog, resource, and authentication services; starts a background thread that fetches this service's own JWT from the Authentication Manager on startup
 - **catalog_service.py** - Manages catalog operations and caching
 - **resource_service.py** - Posts resources to provider and retrieves resource lists
 - **ids_provider_interface.py** - FastAPI endpoint handlers
+- **authentication_manager.py** - OAuth2 client-credentials JWT client for the external Authentication Manager (IAM); also validates caller bearer tokens (see [Authentication](#authentication))
+- **auth_token_store.py** - Persists the service's own JWT to a local SQLite database (`authentication_tokens.db`)
 
 ### Configuration Files
 - **.env** - Local development configuration (uses IP: `10.254.3.188:8090`) and for Pod configuration reference (uses service name: `tc-provider:8090`)
@@ -49,6 +52,22 @@ TOE → POST data → ids_toe_service:8005 → POST → tc-provider:8090
 - **build.sh** - Builds Docker image and loads into K3s
 - **deploy.sh** - Deploys to Kubernetes cluster
 - **post_ids_toe_wrapper.py** - Test script for POST endpoint
+
+### Test Data Senders (standalone CLI, run manually — not part of the running service)
+
+- **`ids_toe_unified_sender.py`** - **Current/canonical** sender. POSTs a file (`.zip`, `.ipynb`, `.py`, or `.json`) to `IDS_connector_TOE`: `python3 ids_toe_unified_sender.py <file_path>`. Use this one for testing.
+- **`ids_toe_zip_sender.py`** - Earlier, zip-only version of the sender above. Superseded by `ids_toe_unified_sender.py`; kept for reference, not actively used.
+- **`create_data_zip.py`** - Builds a sample zip file to feed into the senders above for testing.
+- **`post-json-resource.py`** - Posts a text resource directly into TRUE Connector, bypassing `IDS_connector_TOE` entirely. Superseded — the file itself says to use `post_ids_toe_wrapper.py` instead.
+
+### Diagnostic / scratch scripts (not part of the service)
+
+- **`selfDescribeAPI-ids.py`** - One-off script that calls `tc-provider`'s `/api/selfDescription/` directly, bypassing `IDS_connector_TOE`, to inspect the raw provider response during debugging.
+- **`sample.py`, `test123.py`, `small.py`** - Disposable scratch/demo scripts with no connection to the service logic. Safe to ignore.
+
+### Authentication Utilities (standalone CLI, run manually — not part of the running service)
+- **set_toe_id.py** - Sends a TOE UUID to a running instance: `python3 set_toe_id.py <toe-uuid> [--base-url http://localhost:8005]`
+- **delete_toe_auth.py** - Cleans up a TOE's digital-twin registration directly against the IAM/wallet controller (deletes the twin, optionally revokes its access token, or lists all registered twins with `--list`)
 
 ## Prerequisites
 
@@ -321,6 +340,12 @@ kubectl logs --previous deployment/ids-connector-toe-deployment
 | HOST | 0.0.0.0 | 0.0.0.0 | Server host |
 | PORT | 8005 | 8005 | Server port |
 | LOG_LEVEL | info | info | Logging level |
+| AUTH_BASE_URL | http://iam.cobalt.local:3100 | http://iam.cobalt.local:3100 | Base URL of the Authentication Manager (IAM) |
+| AUTH_CLIENT_ID | idstoe | idstoe | OAuth2 client ID for this service's own JWT |
+| AUTH_CLIENT_SECRET | — | — | OAuth2 client secret |
+| AUTH_SCOPE | digital_twins profile | digital_twins profile | OAuth2 scope requested |
+| AUTH_DB_PATH | authentication_tokens.db | authentication_tokens.db | SQLite file the JWT is persisted to |
+| AUTH_TOKEN_VALIDATION_PATH | /oauth/userinfo | /oauth/userinfo | IAM path used to validate a caller's bearer JWT |
 
 ### Kubernetes Configuration
 
@@ -408,6 +433,30 @@ Clears the catalog cache.
   "message": "Catalog cache cleared successfully"
 }
 ```
+
+## Authentication
+
+`IDS_connector_TOE` integrates with an external **Authentication Manager (IAM)** — the COBALT project's identity/digital-twin wallet service — for two separate purposes:
+
+1. **Its own service identity.** On startup, a background thread (`manager.py` → `_run_jwt_refresh`) requests an OAuth2 client-credentials JWT from the IAM (`client_id=idstoe` by default) and persists it in a local SQLite database (`authentication_tokens.db`, via `auth_token_store.py`). This JWT is what the service uses when it needs to call other IAM-protected endpoints itself.
+2. **Validating callers.** Sensitive write endpoints (currently `POST /api/IDSconnector/TOE/id`) require the *caller* to present their own bearer JWT in the `Authorization` header, which is validated against the IAM's `/oauth/userinfo` endpoint before the request is accepted.
+
+### Authentication endpoints
+
+| Endpoint | Method | Auth required | Description |
+|---|---|---|---|
+| `/api/IDSconnector/TOE/jwt/refresh` | POST | No | Forces a fresh JWT fetch from the IAM and stores it. |
+| `/api/IDSconnector/TOE/jwt/status` | GET | No | Returns stored JWT metadata (type, scope, expiry) — never the raw token. |
+| `/api/IDSconnector/TOE/jwt/request` | POST | No | Calls an arbitrary IAM path using the service's own stored JWT. |
+| `/api/IDSconnector/TOE/id` | POST | Yes — `Authorization: Bearer <caller JWT>`, validated via IAM `/oauth/userinfo` | Sets the TOE UUID that gets injected into every subsequent `post_data` payload. |
+| `/api/IDSconnector/TOE/id` | GET | No | Returns the currently stored TOE UUID. |
+
+See the [Environment Variables](#environment-variables) table above for the `AUTH_*` settings that configure this.
+
+### Standalone CLI utilities
+
+- **`set_toe_id.py`** — sends a TOE UUID to a running `IDS_connector_TOE` instance: `python3 set_toe_id.py <toe-uuid> [--base-url http://localhost:8005]`.
+- **`delete_toe_auth.py`** — cleans up a TOE's digital-twin registration directly against the IAM/wallet controller (not through `IDS_connector_TOE`): deletes the twin (`DELETE /wallet/digital-twins/<toe_id>`), optionally revokes its access token (`POST /oauth/revoke`), and can list all registered twins (`--list`).
 
 ## Troubleshooting
 
@@ -519,6 +568,11 @@ ids_toe/
 ├── catalog_service.py                   # Catalog operations
 ├── resource_service.py                  # Resource posting/retrieval
 ├── ids_provider_interface.py            # API endpoints
+├── authentication_manager.py            # IAM JWT client + caller token validation
+├── auth_token_store.py                  # SQLite-backed JWT storage
+├── authentication_tokens.db             # SQLite DB written by auth_token_store.py
+├── set_toe_id.py                        # CLI: set the TOE UUID on a running instance
+├── delete_toe_auth.py                   # CLI: delete a digital-twin registration from the IAM
 ├── requirements.txt                     # Python dependencies
 ├── Dockerfile                           # Container image
 ├── .env                                 # Local config (gitignored)
@@ -570,4 +624,4 @@ For issues or questions:
 
 ## License
 
-MIT Apache License
+Apache License 2.0 — see the repository root [LICENSE](../LICENSE).
